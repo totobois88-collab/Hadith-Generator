@@ -4,106 +4,160 @@ from bidi.algorithm import get_display
 from PIL import Image, ImageDraw, ImageFont
 import io
 import os
+import urllib.request
 
 st.set_page_config(page_title="صانع صور الأحاديث", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية 📜")
 st.write("أدخل بيانات الحديث وتحكم في الشكل والتصميم من القائمة الجانبية.")
 
+# ================= تحميل الخطوط تلقائياً =================
+fonts_dict = {
+    "أميري (تقليدي)": "Amiri-Regular.ttf",
+    "كايرو (حديث وعريض)": "Cairo-Bold.ttf",
+    "تجوال (أنيق ورسمي)": "Tajawal-Bold.ttf"
+}
+
+font_urls = {
+    "Amiri-Regular.ttf": "https://github.com/googlefonts/amiri/raw/main/fonts/ttf/Amiri-Regular.ttf",
+    "Cairo-Bold.ttf": "https://raw.githubusercontent.com/google/fonts/main/ofl/cairo/static/Cairo-Bold.ttf",
+    "Tajawal-Bold.ttf": "https://raw.githubusercontent.com/google/fonts/main/ofl/tajawal/Tajawal-Bold.ttf"
+}
+
+@st.cache_resource
+def download_fonts():
+    for font_file, url in font_urls.items():
+        if not os.path.exists(font_file):
+            try:
+                # محاكاة متصفح لتخطي حظر التحميل
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req) as response, open(font_file, 'wb') as out_file:
+                    out_file.write(response.read())
+            except Exception as e:
+                st.warning(f"تعذر تحميل الخط: {font_file}")
+download_fonts()
+
 # ================= القائمة الجانبية (للتحكم في التصميم) =================
 st.sidebar.header("🎨 إعدادات التصميم")
 
-st.sidebar.subheader("1. أبعاد الصورة")
+st.sidebar.subheader("1. أبعاد الصورة والمحاذاة")
 image_width = st.sidebar.slider("عرض الصورة:", min_value=600, max_value=2000, value=1200, step=100)
-image_height = st.sidebar.slider("طول الصورة:", min_value=400, max_value=2000, value=800, step=100)
+image_height = st.sidebar.slider("طول الصورة:", min_value=600, max_value=2000, value=1000, step=100)
+
+alignment_choice = st.sidebar.selectbox("محاذاة النص:", ["وسط (Center)", "يمين (Right)", "يسار (Left)"])
 
 st.sidebar.subheader("2. الألوان والشكل")
 bg_color = st.sidebar.color_picker("لون الخلفية:", "#FDFBF7")
 text_color = st.sidebar.color_picker("لون نص الحديث والمقدمة:", "#282828")
 grade_color = st.sidebar.color_picker("لون التخريج:", "#785028")
-show_frame = st.sidebar.checkbox("إضافة إطار (برواز) للصورة", value=True)
+show_frame = st.sidebar.checkbox("إضافة إطار (برواز)", value=True)
 frame_color = st.sidebar.color_picker("لون الإطار:", "#D3C5A3")
 
-st.sidebar.subheader("3. أحجام الخطوط")
+st.sidebar.subheader("3. نوع وأحجام الخطوط")
+selected_font_name = st.sidebar.selectbox("اختر نوع الخط:", list(fonts_dict.keys()))
+selected_font_file = fonts_dict[selected_font_name]
+
 intro_font_size = st.sidebar.slider("حجم خط المقدمة:", 20, 100, 35)
-hadith_font_size = st.sidebar.slider("حجم خط الحديث:", 30, 150, 70)
+hadith_font_size = st.sidebar.slider("حجم خط الحديث:", 30, 150, 65)
 grade_font_size = st.sidebar.slider("حجم خط التخريج:", 20, 100, 35)
 
-
 # ================= واجهة إدخال النصوص (في المنتصف) =================
-col1, col2 = st.columns([2, 1]) # تقسيم الشاشة لترتيب أفضل
-
+col1, col2 = st.columns([2, 1]) 
 with col1:
     intro_input = st.text_area("السند والمقدمة:", "عن أمير المؤمنين أبي حفص عمر بن الخطاب رضي الله عنه قال:\nسمعت رسول الله ﷺ يقول:")
     hadith_input = st.text_area("نص الحديث:", "« إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى »", height=150)
     grade_input = st.text_input("التخريج والصحة:", "رواه البخاري ومسلم")
 
+# ================= معالجة اللغة العربية والالتفاف (Wrapping) =================
+reshaper = arabic_reshaper.ArabicReshaper(configuration={'delete_harakat': False, 'support_ligatures': True})
 
-# ================= دالة معالجة اللغة العربية =================
 def prepare_arabic(text):
-    reshaper = arabic_reshaper.ArabicReshaper(configuration={
-        'delete_harakat': False,
-        'support_ligatures': True,
-    })
-    reshaped_text = reshaper.reshape(text)
-    return get_display(reshaped_text)
+    return get_display(reshaper.reshape(text))
+
+def wrap_text(text, font, max_width):
+    """دالة تقوم بتقسيم النص لسطور جديدة إذا تجاوز عرض الصورة"""
+    lines = []
+    for paragraph in text.split('\n'):
+        words = paragraph.split(' ')
+        current_line = []
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            # فحص عرض السطر التجريبي
+            test_width = font.getlength(prepare_arabic(test_line))
+            if test_width <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+                else:
+                    lines.append(word)
+        if current_line:
+            lines.append(' '.join(current_line))
+    return '\n'.join(lines)
 
 
 # ================= توليد الصورة =================
 if st.button("✨ توليد الصورة", type="primary"):
-    # معالجة النصوص
-    fixed_intro = "\n".join([prepare_arabic(line) for line in intro_input.split('\n')])
-    fixed_hadith = "\n".join([prepare_arabic(line) for line in hadith_input.split('\n')])
-    fixed_grade = prepare_arabic(grade_input)
-
-    # إنشاء الصورة باللون المختار
+    
     img = Image.new('RGB', (image_width, image_height), color=bg_color)
     draw = ImageDraw.Draw(img)
 
-    # رسم الإطار إذا تم تفعيله
+    # رسم الإطار
+    padding = 60 # المسافة الآمنة من الحواف للنص
     if show_frame:
-        # رسم مستطيل فارغ كإطار (نترك مسافة 30 بكسل من كل الحواف)
-        draw.rectangle(
-            [(30, 30), (image_width - 30, image_height - 30)],
-            outline=frame_color,
-            width=5
-        )
-        # إطار داخلي رفيع لمسة جمالية
-        draw.rectangle(
-            [(40, 40), (image_width - 40, image_height - 40)],
-            outline=frame_color,
-            width=1
-        )
+        draw.rectangle([(30, 30), (image_width - 30, image_height - 30)], outline=frame_color, width=5)
+        draw.rectangle([(40, 40), (image_width - 40, image_height - 40)], outline=frame_color, width=1)
 
-    # تحميل الخط (من المستودع)
-    font_path = "Amiri-Regular.ttf"
+    # تحميل الخط المختار
     try:
-        font_intro = ImageFont.truetype(font_path, intro_font_size)
-        font_hadith = ImageFont.truetype(font_path, hadith_font_size)
-        font_grade = ImageFont.truetype(font_path, grade_font_size)
+        font_intro = ImageFont.truetype(selected_font_file, intro_font_size)
+        font_hadith = ImageFont.truetype(selected_font_file, hadith_font_size)
+        font_grade = ImageFont.truetype(selected_font_file, grade_font_size)
     except OSError:
-        st.error(f"لم يتم العثور على ملف الخط '{font_path}'. يرجى التأكد من رفعه إلى المستودع.")
+        st.error(f"تعذر تحميل الخط {selected_font_file}.")
         st.stop()
 
-    # حساب أماكن النصوص بناءً على ارتفاع الصورة الديناميكي
-    pos_intro = image_height * 0.20  # 20% من الأعلى
-    pos_hadith = image_height * 0.50 # في المنتصف تماماً
-    pos_grade = image_height * 0.82  # 82% من الأعلى (قريب للأسفل)
+    # أقصى عرض مسموح للنص داخل الصورة (العرض الكلي ناقص الهوامش)
+    max_text_width = image_width - (padding * 2)
 
-    # رسم النصوص
-    draw.multiline_text((image_width / 2, pos_intro), fixed_intro, font=font_intro, fill=text_color, anchor="mm", align="center", spacing=15)
-    draw.multiline_text((image_width / 2, pos_hadith), fixed_hadith, font=font_hadith, fill=text_color, anchor="mm", align="center", spacing=25)
-    draw.multiline_text((image_width / 2, pos_grade), fixed_grade, font=font_grade, fill=grade_color, anchor="mm", align="center", spacing=15)
+    # تطبيق دالة الالتفاف (Wrapping) ومعالجة العربية
+    wrapped_intro = prepare_arabic(wrap_text(intro_input, font_intro, max_text_width))
+    wrapped_hadith = prepare_arabic(wrap_text(hadith_input, font_hadith, max_text_width))
+    wrapped_grade = prepare_arabic(wrap_text(grade_input, font_grade, max_text_width))
 
-    # عرض الصورة في الموقع
+    # إعدادات المحاذاة (تحديد إحداثيات X ونوع الربط)
+    if alignment_choice == "يمين (Right)":
+        x_pos = image_width - padding
+        anchor = "rm"
+        align = "right"
+    elif alignment_choice == "يسار (Left)":
+        x_pos = padding
+        anchor = "lm"
+        align = "left"
+    else: # وسط
+        x_pos = image_width / 2
+        anchor = "mm"
+        align = "center"
+
+    # حساب أماكن النصوص العمودية (Y) ديناميكياً
+    pos_intro = image_height * 0.20
+    pos_hadith = image_height * 0.50
+    pos_grade = image_height * 0.82
+
+    # رسم النصوص على الصورة
+    draw.multiline_text((x_pos, pos_intro), wrapped_intro, font=font_intro, fill=text_color, anchor=anchor, align=align, spacing=15)
+    draw.multiline_text((x_pos, pos_hadith), wrapped_hadith, font=font_hadith, fill=text_color, anchor=anchor, align=align, spacing=25)
+    draw.multiline_text((x_pos, pos_grade), wrapped_grade, font=font_grade, fill=grade_color, anchor=anchor, align=align, spacing=15)
+
+    # عرض الصورة النهائية
     st.image(img, caption="معاينة الصورة النهائية", use_column_width=True)
 
-    # تحويل الصورة إلى بايتات للتحميل
+    # تجهيز الصورة للتحميل
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     byte_im = buf.getvalue()
 
-    # زر التحميل
     st.download_button(
         label="📥 تحميل الصورة العالية الدقة",
         data=byte_im,
