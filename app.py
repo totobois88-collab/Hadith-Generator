@@ -73,9 +73,8 @@ show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", valu
 frame_color = st.sidebar.color_picker("لون الإطار العام:", "#D3C5A3")
 gap = st.sidebar.slider("المسافة بين الأقسام:", 20, 200, 60)
 
-st.sidebar.subheader("7. الخط والمعالجة المتقدمة")
+st.sidebar.subheader("7. نوع الخط")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
-shift_harakat = st.sidebar.checkbox("تصحيح موضع التشكيل (فعّله إذا كان التشكيل غير متطابق)", value=False)
 
 # ================= واجهة الإدخال =================
 col1, col2 = st.columns([2, 1]) 
@@ -128,21 +127,18 @@ if enable_smart_parse:
 else:
     intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
 
-# ================= معالجة اللغة العربية المتقدمة =================
+# ================= معالجة اللغة العربية (بالكود القديم السليم 100%) =================
 reshaper_config = {
     'delete_harakat': False,
     'support_ligatures': True, 
-    'shift_harakat_position': shift_harakat # ربط الخيار بالزر
+    'shift_harakat_position': False
 }
 reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
 
 def prepare_arabic(text):
     if not text.strip(): return ""
     text = text.replace("ﷺ", "صلى الله عليه وسلم").replace("ﷻ", "جل جلاله")
-    
-    # حل مشكلة الأقواس المعكوسة والمربعات باستخدام base_dir='R'
-    reshaped_text = reshaper.reshape(text)
-    return get_display(reshaped_text, base_dir='R')
+    return get_display(reshaper.reshape(text))
 
 def wrap_text(text, font, max_width):
     if not text.strip(): return ""
