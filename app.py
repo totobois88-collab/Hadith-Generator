@@ -47,6 +47,12 @@ grade_text_color = st.sidebar.color_picker("لون التخريج:", "#785028")
 
 st.sidebar.subheader("5. أشرطة خلفية للنصوص (Ribbons)")
 show_text_bg = st.sidebar.checkbox("تفعيل أشرطة ملونة خلف النصوص", value=False)
+
+# [الإصلاح هنا]: تعريف المتغيرات بقيم افتراضية لتجنب خطأ NameError
+intro_bg_color = "#F0E6D2"
+hadith_bg_color = "#E8E8E8"
+grade_bg_color = "#F0E6D2"
+
 if show_text_bg:
     intro_bg_color = st.sidebar.color_picker("لون شريط السند:", "#F0E6D2")
     hadith_bg_color = st.sidebar.color_picker("لون شريط الحديث:", "#E8E8E8")
@@ -130,7 +136,6 @@ def prepare_arabic(text):
     text = text.replace("ﷺ", "صلى الله عليه وسلم").replace("ﷻ", "جل جلاله")
     return get_display(reshaper.reshape(text))
 
-# دالة الالتفاف المصححة
 def wrap_text(text, font, max_width):
     if not text.strip(): return ""
     lines = []
