@@ -11,7 +11,7 @@ import re
 st.set_page_config(page_title="صانع صور الأحاديث", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية 📜")
-st.write("أدخل النص، وسيقوم النظام بتوزيعه وضبط مقاساته ليلائم حجم الصورة آلياً.")
+st.write("أدخل النص، وسيقوم النظام بتوزيعه وضبط مقاساته ليلائم حجم الصورة.")
 
 # ================= البحث عن الخطوط =================
 available_fonts = glob.glob("*.ttf") + glob.glob("*.otf")
@@ -34,11 +34,25 @@ if bg_image_file:
     if bg_scale_mode == "تخصيص الحجم (Custom)":
         custom_scale = st.sidebar.slider("نسبة التكبير/التصغير:", 10, 200, 100)
 
-st.sidebar.subheader("3. محاذاة النصوص")
+st.sidebar.subheader("3. محاذاة وأحجام النصوص")
+auto_scale = st.sidebar.checkbox("🤖 تفعيل التحجيم الآلي للخطوط", value=True)
+
 align_opts = ["وسط (Center)", "يمين (Right)", "يسار (Left)"]
-align_intro = st.sidebar.selectbox("محاذاة السند:", align_opts, index=0)
-align_hadith = st.sidebar.selectbox("محاذاة الحديث:", align_opts, index=0)
-align_grade = st.sidebar.selectbox("محاذاة التخريج:", align_opts, index=0)
+
+# السند
+col_in1, col_in2 = st.sidebar.columns(2)
+align_intro = col_in1.selectbox("محاذاة السند:", align_opts, index=0)
+intro_size = col_in2.number_input("حجم السند:", min_value=10, max_value=150, value=40, disabled=auto_scale)
+
+# الحديث
+col_hd1, col_hd2 = st.sidebar.columns(2)
+align_hadith = col_hd1.selectbox("محاذاة الحديث:", align_opts, index=0)
+hadith_size = col_hd2.number_input("حجم الحديث:", min_value=10, max_value=250, value=75, disabled=auto_scale)
+
+# التخريج
+col_gr1, col_gr2 = st.sidebar.columns(2)
+align_grade = col_gr1.selectbox("محاذاة التخريج:", align_opts, index=0)
+grade_size = col_gr2.number_input("حجم التخريج:", min_value=10, max_value=150, value=40, disabled=auto_scale)
 
 st.sidebar.subheader("4. ألوان الخطوط")
 intro_text_color = st.sidebar.color_picker("لون نص السند:", "#4A4A4A")
@@ -69,7 +83,6 @@ selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available
 col1, col2 = st.columns([2, 1]) 
 with col1:
     enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي (بالكلمات المفتاحية)", value=True)
-    # تم إفراغ النص الافتراضي نهائياً
     full_text_input = st.text_area(
         "أدخل النص هنا:",
         value="", 
@@ -117,7 +130,7 @@ if enable_smart_parse:
 else:
     intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
 
-# ================= معالجة اللغة العربية (بالكود القديم السليم) =================
+# ================= معالجة اللغة العربية =================
 reshaper_config = {
     'delete_harakat': False,
     'support_ligatures': True, 
@@ -172,7 +185,6 @@ if st.button("✨ توليد الصورة", type="primary"):
         try:
             img = Image.new('RGB', (image_width, image_height), color=bg_color)
             
-            # معالجة صورة الخلفية
             if bg_image_file:
                 bg_pil = Image.open(bg_image_file).convert("RGBA")
                 if bg_scale_mode == "تمديد (Stretch)":
@@ -205,31 +217,37 @@ if st.button("✨ توليد الصورة", type="primary"):
             max_width = image_width - (padding * 2)
             max_height = image_height - (padding * 2)
 
-            best_x = 10 
-            for x in range(60, 9, -1):
-                f_in = ImageFont.truetype(selected_font_file, 2 * x) 
-                f_hd = ImageFont.truetype(selected_font_file, 3 * x) 
-                f_gr = ImageFont.truetype(selected_font_file, x)     
+            # تحديد مقاس الخطوط (آلي أو يدوي)
+            if auto_scale:
+                best_x = 10 
+                for x in range(60, 9, -1):
+                    f_in = ImageFont.truetype(selected_font_file, 2 * x) 
+                    f_hd = ImageFont.truetype(selected_font_file, 3 * x) 
+                    f_gr = ImageFont.truetype(selected_font_file, x)     
 
-                w_in = wrap_text(intro_part, f_in, max_width)
-                w_hd = wrap_text(hadith_part, f_hd, max_width)
-                w_gr = wrap_text(grade_part, f_gr, max_width)
+                    w_in = wrap_text(intro_part, f_in, max_width)
+                    w_hd = wrap_text(hadith_part, f_hd, max_width)
+                    w_gr = wrap_text(grade_part, f_gr, max_width)
 
-                h_in = draw.multiline_textbbox((0,0), prepare_arabic(w_in), font=f_in, spacing=15)[3] if w_in else 0
-                h_hd = draw.multiline_textbbox((0,0), prepare_arabic(w_hd), font=f_hd, spacing=25)[3] if w_hd else 0
-                h_gr = draw.multiline_textbbox((0,0), prepare_arabic(w_gr), font=f_gr, spacing=15)[3] if w_gr else 0
+                    h_in = draw.multiline_textbbox((0,0), prepare_arabic(w_in), font=f_in, spacing=15)[3] if w_in else 0
+                    h_hd = draw.multiline_textbbox((0,0), prepare_arabic(w_hd), font=f_hd, spacing=25)[3] if w_hd else 0
+                    h_gr = draw.multiline_textbbox((0,0), prepare_arabic(w_gr), font=f_gr, spacing=15)[3] if w_gr else 0
 
-                total_h = h_in + h_hd + h_gr
-                if h_in and (h_hd or h_gr): total_h += gap
-                if h_hd and h_gr: total_h += gap
+                    total_h = h_in + h_hd + h_gr
+                    if h_in and (h_hd or h_gr): total_h += gap
+                    if h_hd and h_gr: total_h += gap
 
-                if total_h <= max_height:
-                    best_x = x
-                    break
+                    if total_h <= max_height:
+                        best_x = x
+                        break
 
-            font_intro = ImageFont.truetype(selected_font_file, 2 * best_x)
-            font_hadith = ImageFont.truetype(selected_font_file, 3 * best_x)
-            font_grade = ImageFont.truetype(selected_font_file, best_x)
+                font_intro = ImageFont.truetype(selected_font_file, 2 * best_x)
+                font_hadith = ImageFont.truetype(selected_font_file, 3 * best_x)
+                font_grade = ImageFont.truetype(selected_font_file, best_x)
+            else:
+                font_intro = ImageFont.truetype(selected_font_file, intro_size)
+                font_hadith = ImageFont.truetype(selected_font_file, hadith_size)
+                font_grade = ImageFont.truetype(selected_font_file, grade_size)
 
             wrapped_intro = prepare_arabic(wrap_text(intro_part, font_intro, max_width))
             wrapped_hadith = prepare_arabic(wrap_text(hadith_part, font_hadith, max_width))
@@ -272,13 +290,11 @@ if st.button("✨ توليد الصورة", type="primary"):
             if wrapped_grade:
                 draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
 
-            # حفظ الصورة في الـ Session State حتى لا تختفي
             st.session_state['final_image'] = img
 
         except Exception as e:
             st.error(f"حدث خطأ أثناء المعالجة: {e}")
 
-# عرض الصورة وزر التحميل إذا كانت متوفرة في الذاكرة
 if 'final_image' in st.session_state:
     st.image(st.session_state['final_image'], caption="معاينة الصورة النهائية", use_column_width=True)
     
