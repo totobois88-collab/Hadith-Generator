@@ -8,10 +8,10 @@ import glob
 import re
 
 # ================= إعدادات الصفحة =================
-st.set_page_config(page_title="صانع صور الأحاديث الذكي", page_icon="📜", layout="wide")
+st.set_page_config(page_title="صانع صور الأحاديث الاحترافي", page_icon="📜", layout="wide")
 
-st.title("صانع صور الأحاديث النبوية الذكي 📜")
-st.info("💡 **نصيحة لتشكيل مثالي:** لتجنب المربعات وضمان التزام التشكيل بالحرف بدقة، يُنصح باستخدام خط **Amiri** أو **KFGQPC Uthman Taha** بدلاً من خط Noto.")
+st.title("صانع صور الأحاديث النبوية 📜")
+st.write("أدخل النص وسيقوم النظام بتوزيعه وضبط مقاساته ليلائم حجم الصورة والخلفية آلياً.")
 
 # ================= البحث عن الخطوط =================
 available_fonts = glob.glob("*.ttf") + glob.glob("*.otf")
@@ -46,17 +46,15 @@ hadith_text_color = st.sidebar.color_picker("لون نص الحديث:", "#1A1A1
 grade_text_color = st.sidebar.color_picker("لون التخريج:", "#785028")
 
 st.sidebar.subheader("5. أشرطة خلفية للنصوص (Ribbons)")
-show_text_bg = st.sidebar.checkbox("تفعيل أشرطة ملونة خلف النصوص", value=False)
-
-# تم ربط الألوان بقيم افتراضية لتفادي الأخطاء، وسيتم قراءتها بشكل صحيح الآن
+show_text_bg = st.sidebar.checkbox("تفعيل تظليل ملون خلف النصوص", value=False)
 intro_bg_color = "#F0E6D2"
 hadith_bg_color = "#E8E8E8"
 grade_bg_color = "#F0E6D2"
 
 if show_text_bg:
-    intro_bg_color = st.sidebar.color_picker("لون شريط السند:", "#F0E6D2")
-    hadith_bg_color = st.sidebar.color_picker("لون شريط الحديث:", "#E8E8E8")
-    grade_bg_color = st.sidebar.color_picker("لون شريط التخريج:", "#F0E6D2")
+    intro_bg_color = st.sidebar.color_picker("لون تظليل السند:", "#F0E6D2")
+    hadith_bg_color = st.sidebar.color_picker("لون تظليل الحديث:", "#E8E8E8")
+    grade_bg_color = st.sidebar.color_picker("لون تظليل التخريج:", "#F0E6D2")
 
 st.sidebar.subheader("6. إعدادات أخرى")
 bg_color = st.sidebar.color_picker("لون خلفية الصورة العام:", "#FDFBF7")
@@ -67,24 +65,21 @@ gap = st.sidebar.slider("المسافة بين الأقسام:", 20, 200, 60)
 st.sidebar.subheader("7. نوع الخط")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
 
+
 # ================= واجهة الإدخال =================
 col1, col2 = st.columns([2, 1]) 
 with col1:
-    enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي للنص (التعرف الآلي)", value=True)
+    enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي للنص (بالكلمات المفتاحية)", value=True)
     full_text_input = st.text_area(
         "أدخل النص هنا:",
-        value="", 
-        height=200,
-        placeholder="أدخل نص الحديث هنا...\nإذا ألغيت الذكاء الاصطناعي، اترك سطراً فارغاً بين السند والحديث والتخريج."
+        value="عن أمير المؤمنين أبي حفص عمر بن الخطاب رضي الله عنه قال: سمعت رسول الله ﷺ يقول:\n« إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى »\nرواه البخاري ومسلم", 
+        height=200
     )
 
 # ================= خوارزميات تحليل النص =================
 def parse_text_smart(text):
     if not text.strip(): return "", "", ""
-    pattern = r'(?s)^(.*?)([«\(\["\{].*?[»\)\]"\}])(.*)$'
-    match = re.search(pattern, text)
-    if match: return match.group(1).strip(), match.group(2).strip(), match.group(3).strip()
-    
+    # تم إلغاء خوارزمية البحث عن الأقواس هنا بناءً على طلبك
     lines = text.split('\n')
     intro, hadith, grade = [], [], []
     state = 0 
@@ -94,6 +89,7 @@ def parse_text_smart(text):
     for line in lines:
         if not line.strip(): continue
         if state == 1 and any(k in line for k in grade_keywords): state = 2
+        
         if state == 0:
             intro.append(line)
             if any(k in line for k in intro_end_keywords): state = 1
@@ -121,12 +117,11 @@ if enable_smart_parse:
 else:
     intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
 
-# ================= معالجة اللغة العربية والتشكيل =================
-# تم ضبط الإعدادات لتتوافق بأفضل شكل ممكن مع الحركات (التشكيل)
+# ================= معالجة اللغة العربية (بالكود القديم السليم) =================
 reshaper_config = {
     'delete_harakat': False,
     'support_ligatures': True, 
-    'shift_harakat_position': True 
+    'shift_harakat_position': False
 }
 reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
 
@@ -163,7 +158,6 @@ def get_alignment_props(choice, width, pad):
     elif "يسار" in choice: return pad, "la", "left"
     else: return width / 2, "ma", "center"
 
-# دالة تحويل اللون لتأكيد عمل الأشرطة
 def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
@@ -179,6 +173,7 @@ if st.button("✨ توليد الصورة", type="primary"):
 
     img = Image.new('RGB', (image_width, image_height), color=bg_color)
     
+    # معالجة صورة الخلفية
     if bg_image_file:
         try:
             bg_pil = Image.open(bg_image_file).convert("RGBA")
@@ -214,11 +209,11 @@ if st.button("✨ توليد الصورة", type="primary"):
     max_width = image_width - (padding * 2)
     max_height = image_height - (padding * 2)
 
-    # التحجيم الآلي
+    # التحجيم الآلي للخطوط (النسب: 1 للتخريج، 2 للسند، 3 للحديث)
     best_x = 10 
     for x in range(60, 9, -1):
         try:
-            f_in = ImageFont.truetype(selected_font_file, int(1.5 * x)) 
+            f_in = ImageFont.truetype(selected_font_file, 2 * x) 
             f_hd = ImageFont.truetype(selected_font_file, 3 * x) 
             f_gr = ImageFont.truetype(selected_font_file, x)     
         except OSError:
@@ -241,7 +236,7 @@ if st.button("✨ توليد الصورة", type="primary"):
             best_x = x
             break
 
-    font_intro = ImageFont.truetype(selected_font_file, int(1.5 * best_x))
+    font_intro = ImageFont.truetype(selected_font_file, 2 * best_x)
     font_hadith = ImageFont.truetype(selected_font_file, 3 * best_x)
     font_grade = ImageFont.truetype(selected_font_file, best_x)
 
@@ -253,6 +248,7 @@ if st.button("✨ توليد الصورة", type="primary"):
     x_hadith, anchor_hadith, align_hd = get_alignment_props(align_hadith, image_width, padding)
     x_grade, anchor_grade, align_gr = get_alignment_props(align_grade, image_width, padding)
 
+    # حساب الارتفاعات النهائية لمعرفة إحداثيات التمركز
     h_in = draw.multiline_textbbox((0,0), wrapped_intro, font=font_intro, spacing=15)[3] if wrapped_intro else 0
     h_hd = draw.multiline_textbbox((0,0), wrapped_hadith, font=font_hadith, spacing=25)[3] if wrapped_hadith else 0
     h_gr = draw.multiline_textbbox((0,0), wrapped_grade, font=font_grade, spacing=15)[3] if wrapped_grade else 0
@@ -263,31 +259,31 @@ if st.button("✨ توليد الصورة", type="primary"):
 
     start_y = max(padding, (image_height - total_final_h) / 2)
 
-    # دالة رسم الشريط המلون خلف النص بإحداثيات دقيقة
-    def draw_bg_ribbon(y, height, hex_color):
-        if show_text_bg and height > 0:
-            rgb = hex_to_rgb(hex_color)
-            # رسم مستطيل يغطي عرض الصورة (مع ترك هوامش بسيطة) بارتفاع النص + 20 بكسل للتوسعة
-            draw.rectangle([(padding - 30, y - 10), (image_width - padding + 30, y + height + 10)], fill=rgb)
+    # دالة رسم النص مع تظليل خلفيته بدقة حسب مقاس الكلام
+    def draw_highlighted_text(x, y, text, font, text_color, bg_color, anchor, align, spacing):
+        if not text: return 0
+        
+        # استخراج الإحداثيات الدقيقة للصندوق المحيط بالنص
+        bbox = draw.multiline_textbbox((x, y), text, font=font, anchor=anchor, align=align, spacing=spacing)
+        
+        if show_text_bg:
+            rgb = hex_to_rgb(bg_color)
+            # رسم مستطيل يحيط بالنص تماماً (مع هامش بسيط 10 بكسل)
+            rect_coords = [(bbox[0] - 15, bbox[1] - 10), (bbox[2] + 15, bbox[3] + 10)]
+            draw.rectangle(rect_coords, fill=rgb)
+            
+        # رسم النص فوق التظليل
+        draw.multiline_text((x, y), text, font=font, fill=text_color, anchor=anchor, align=align, spacing=spacing)
+        return bbox[3] - bbox[1] # إرجاع الارتفاع
 
-    # رسم الأشرطة والنصوص بترتيب صحيح (الشريط أولاً ثم النص فوقه)
+    # رسم الأجزاء بشكل متتابع
     if wrapped_intro:
-        draw_bg_ribbon(start_y, h_in, intro_bg_color)
-        draw.multiline_text((x_intro, start_y), wrapped_intro, font=font_intro, fill=intro_text_color, anchor=anchor_intro, align=align_in, spacing=15)
-        start_y += h_in + gap
+        h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, intro_text_color, intro_bg_color, anchor_intro, align_in, 15)
+        start_y += h + gap
         
     if wrapped_hadith:
-        draw_bg_ribbon(start_y, h_hd, hadith_bg_color)
-        draw.multiline_text((x_hadith, start_y), wrapped_hadith, font=font_hadith, fill=hadith_text_color, anchor=anchor_hadith, align=align_hd, spacing=25)
-        start_y += h_hd + gap
+        h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, hadith_text_color, hadith_bg_color, anchor_hadith, align_hd, 25)
+        start_y += h + gap
         
     if wrapped_grade:
-        draw_bg_ribbon(start_y, h_gr, grade_bg_color)
-        draw.multiline_text((x_grade, start_y), wrapped_grade, font=font_grade, fill=grade_text_color, anchor=anchor_grade, align=align_gr, spacing=15)
-
-    st.image(img, caption="معاينة الصورة النهائية", use_column_width=True)
-
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    byte_im = buf.getvalue()
-    st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_pro_ribbon.png", mime="image/png")
+        draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
