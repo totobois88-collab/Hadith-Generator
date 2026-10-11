@@ -1,2 +1,2 @@
 libraqm-dev
-libfreetype6-dev
+libfribidi-dev
