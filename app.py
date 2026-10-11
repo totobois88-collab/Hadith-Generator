@@ -75,7 +75,7 @@ with st.expander("🔍 اضغط هنا لرؤية كيف قام الذكاء ا�
 reshaper_config = {
     'delete_harakat': False,
     'support_ligatures': True, # ضرورية لتشابك الحروف والتشكيل
-    'shift_harakat_position': False # يمنع تشوه الحركات في بعض الخطوط
+    'shift_harakat_position': True # يمنع تشوه الحركات في بعض الخطوط
 }
 reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
 
