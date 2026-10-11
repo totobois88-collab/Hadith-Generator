@@ -8,10 +8,10 @@ import glob
 import re
 
 # ================= إعدادات الصفحة =================
-st.set_page_config(page_title="صانع صور الأحاديث الاحترافي", page_icon="📜", layout="wide")
+st.set_page_config(page_title="صانع صور الأحاديث", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية 📜")
-st.write("أدخل النص وسيقوم النظام بتوزيعه وضبط مقاساته ليلائم حجم الصورة والخلفية آلياً.")
+st.write("أدخل النص، وسيقوم النظام بتوزيعه وضبط مقاساته ليلائم حجم الصورة آلياً.")
 
 # ================= البحث عن الخطوط =================
 available_fonts = glob.glob("*.ttf") + glob.glob("*.otf")
@@ -40,12 +40,12 @@ align_intro = st.sidebar.selectbox("محاذاة السند:", align_opts, index
 align_hadith = st.sidebar.selectbox("محاذاة الحديث:", align_opts, index=0)
 align_grade = st.sidebar.selectbox("محاذاة التخريج:", align_opts, index=0)
 
-st.sidebar.subheader("4. ألوان الخطوط (لكل جزء)")
+st.sidebar.subheader("4. ألوان الخطوط")
 intro_text_color = st.sidebar.color_picker("لون نص السند:", "#4A4A4A")
 hadith_text_color = st.sidebar.color_picker("لون نص الحديث:", "#1A1A1A")
 grade_text_color = st.sidebar.color_picker("لون التخريج:", "#785028")
 
-st.sidebar.subheader("5. أشرطة خلفية للنصوص (Ribbons)")
+st.sidebar.subheader("5. أشرطة (تظليل) خلف النصوص")
 show_text_bg = st.sidebar.checkbox("تفعيل تظليل ملون خلف النصوص", value=False)
 intro_bg_color = "#F0E6D2"
 hadith_bg_color = "#E8E8E8"
@@ -65,21 +65,21 @@ gap = st.sidebar.slider("المسافة بين الأقسام:", 20, 200, 60)
 st.sidebar.subheader("7. نوع الخط")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
 
-
 # ================= واجهة الإدخال =================
 col1, col2 = st.columns([2, 1]) 
 with col1:
-    enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي للنص (بالكلمات المفتاحية)", value=True)
+    enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي (بالكلمات المفتاحية)", value=True)
+    # تم إفراغ النص الافتراضي نهائياً
     full_text_input = st.text_area(
         "أدخل النص هنا:",
-        value="عن أمير المؤمنين أبي حفص عمر بن الخطاب رضي الله عنه قال: سمعت رسول الله ﷺ يقول:\n« إنما الأعمال بالنيات، وإنما لكل امرئ ما نوى »\nرواه البخاري ومسلم", 
-        height=200
+        value="", 
+        height=200,
+        placeholder="الصق نص الحديث هنا...\nإذا ألغيت الذكاء الاصطناعي، اترك سطراً فارغاً بين السند والحديث والتخريج."
     )
 
 # ================= خوارزميات تحليل النص =================
 def parse_text_smart(text):
     if not text.strip(): return "", "", ""
-    # تم إلغاء خوارزمية البحث عن الأقواس هنا بناءً على طلبك
     lines = text.split('\n')
     intro, hadith, grade = [], [], []
     state = 0 
@@ -166,124 +166,124 @@ def hex_to_rgb(hex_color):
 if st.button("✨ توليد الصورة", type="primary"):
     if not selected_font_file:
         st.error("الرجاء رفع خط أولاً لتوليد الصورة.")
-        st.stop()
-    if not full_text_input.strip():
+    elif not full_text_input.strip():
         st.error("الرجاء إدخال نص الحديث لتوليد الصورة.")
-        st.stop()
+    else:
+        try:
+            img = Image.new('RGB', (image_width, image_height), color=bg_color)
+            
+            # معالجة صورة الخلفية
+            if bg_image_file:
+                bg_pil = Image.open(bg_image_file).convert("RGBA")
+                if bg_scale_mode == "تمديد (Stretch)":
+                    bg_pil = bg_pil.resize((image_width, image_height))
+                    img.paste(bg_pil, (0,0), bg_pil)
+                elif bg_scale_mode == "ملء الشاشة (Cover)":
+                    bg_ratio = bg_pil.width / bg_pil.height
+                    img_ratio = image_width / image_height
+                    if bg_ratio > img_ratio:
+                        new_w = int(image_height * bg_ratio)
+                        bg_pil = bg_pil.resize((new_w, image_height))
+                        img.paste(bg_pil, (-(new_w - image_width) // 2, 0), bg_pil)
+                    else:
+                        new_h = int(image_width / bg_ratio)
+                        bg_pil = bg_pil.resize((image_width, new_h))
+                        img.paste(bg_pil, (0, -(new_h - image_height) // 2), bg_pil)
+                elif bg_scale_mode == "تخصيص الحجم (Custom)":
+                    new_w = int(bg_pil.width * custom_scale / 100)
+                    new_h = int(bg_pil.height * custom_scale / 100)
+                    bg_pil = bg_pil.resize((new_w, new_h))
+                    img.paste(bg_pil, ((image_width - new_w) // 2, (image_height - new_h) // 2), bg_pil)
+                    
+            draw = ImageDraw.Draw(img)
+            padding = 80 
 
-    img = Image.new('RGB', (image_width, image_height), color=bg_color)
+            if show_frame:
+                draw.rectangle([(30, 30), (image_width - 30, image_height - 30)], outline=frame_color, width=5)
+                draw.rectangle([(40, 40), (image_width - 40, image_height - 40)], outline=frame_color, width=1)
+
+            max_width = image_width - (padding * 2)
+            max_height = image_height - (padding * 2)
+
+            best_x = 10 
+            for x in range(60, 9, -1):
+                f_in = ImageFont.truetype(selected_font_file, 2 * x) 
+                f_hd = ImageFont.truetype(selected_font_file, 3 * x) 
+                f_gr = ImageFont.truetype(selected_font_file, x)     
+
+                w_in = wrap_text(intro_part, f_in, max_width)
+                w_hd = wrap_text(hadith_part, f_hd, max_width)
+                w_gr = wrap_text(grade_part, f_gr, max_width)
+
+                h_in = draw.multiline_textbbox((0,0), prepare_arabic(w_in), font=f_in, spacing=15)[3] if w_in else 0
+                h_hd = draw.multiline_textbbox((0,0), prepare_arabic(w_hd), font=f_hd, spacing=25)[3] if w_hd else 0
+                h_gr = draw.multiline_textbbox((0,0), prepare_arabic(w_gr), font=f_gr, spacing=15)[3] if w_gr else 0
+
+                total_h = h_in + h_hd + h_gr
+                if h_in and (h_hd or h_gr): total_h += gap
+                if h_hd and h_gr: total_h += gap
+
+                if total_h <= max_height:
+                    best_x = x
+                    break
+
+            font_intro = ImageFont.truetype(selected_font_file, 2 * best_x)
+            font_hadith = ImageFont.truetype(selected_font_file, 3 * best_x)
+            font_grade = ImageFont.truetype(selected_font_file, best_x)
+
+            wrapped_intro = prepare_arabic(wrap_text(intro_part, font_intro, max_width))
+            wrapped_hadith = prepare_arabic(wrap_text(hadith_part, font_hadith, max_width))
+            wrapped_grade = prepare_arabic(wrap_text(grade_part, font_grade, max_width))
+
+            x_intro, anchor_intro, align_in = get_alignment_props(align_intro, image_width, padding)
+            x_hadith, anchor_hadith, align_hd = get_alignment_props(align_hadith, image_width, padding)
+            x_grade, anchor_grade, align_gr = get_alignment_props(align_grade, image_width, padding)
+
+            h_in = draw.multiline_textbbox((0,0), wrapped_intro, font=font_intro, spacing=15)[3] if wrapped_intro else 0
+            h_hd = draw.multiline_textbbox((0,0), wrapped_hadith, font=font_hadith, spacing=25)[3] if wrapped_hadith else 0
+            h_gr = draw.multiline_textbbox((0,0), wrapped_grade, font=font_grade, spacing=15)[3] if wrapped_grade else 0
+
+            total_final_h = h_in + h_hd + h_gr
+            if h_in and (h_hd or h_gr): total_final_h += gap
+            if h_hd and h_gr: total_final_h += gap
+
+            start_y = max(padding, (image_height - total_final_h) / 2)
+
+            def draw_highlighted_text(x, y, text, font, text_color, bg_color, anchor, align, spacing):
+                if not text: return 0
+                bbox = draw.multiline_textbbox((x, y), text, font=font, anchor=anchor, align=align, spacing=spacing)
+                
+                if show_text_bg:
+                    rgb = hex_to_rgb(bg_color)
+                    rect_coords = [(bbox[0] - 15, bbox[1] - 10), (bbox[2] + 15, bbox[3] + 10)]
+                    draw.rectangle(rect_coords, fill=rgb)
+                    
+                draw.multiline_text((x, y), text, font=font, fill=text_color, anchor=anchor, align=align, spacing=spacing)
+                return bbox[3] - bbox[1] 
+
+            if wrapped_intro:
+                h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, intro_text_color, intro_bg_color, anchor_intro, align_in, 15)
+                start_y += h + gap
+                
+            if wrapped_hadith:
+                h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, hadith_text_color, hadith_bg_color, anchor_hadith, align_hd, 25)
+                start_y += h + gap
+                
+            if wrapped_grade:
+                draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
+
+            # حفظ الصورة في الـ Session State حتى لا تختفي
+            st.session_state['final_image'] = img
+
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء المعالجة: {e}")
+
+# عرض الصورة وزر التحميل إذا كانت متوفرة في الذاكرة
+if 'final_image' in st.session_state:
+    st.image(st.session_state['final_image'], caption="معاينة الصورة النهائية", use_column_width=True)
     
-    # معالجة صورة الخلفية
-    if bg_image_file:
-        try:
-            bg_pil = Image.open(bg_image_file).convert("RGBA")
-            if bg_scale_mode == "تمديد (Stretch)":
-                bg_pil = bg_pil.resize((image_width, image_height))
-                img.paste(bg_pil, (0,0), bg_pil)
-            elif bg_scale_mode == "ملء الشاشة (Cover)":
-                bg_ratio = bg_pil.width / bg_pil.height
-                img_ratio = image_width / image_height
-                if bg_ratio > img_ratio:
-                    new_w = int(image_height * bg_ratio)
-                    bg_pil = bg_pil.resize((new_w, image_height))
-                    img.paste(bg_pil, (-(new_w - image_width) // 2, 0), bg_pil)
-                else:
-                    new_h = int(image_width / bg_ratio)
-                    bg_pil = bg_pil.resize((image_width, new_h))
-                    img.paste(bg_pil, (0, -(new_h - image_height) // 2), bg_pil)
-            elif bg_scale_mode == "تخصيص الحجم (Custom)":
-                new_w = int(bg_pil.width * custom_scale / 100)
-                new_h = int(bg_pil.height * custom_scale / 100)
-                bg_pil = bg_pil.resize((new_w, new_h))
-                img.paste(bg_pil, ((image_width - new_w) // 2, (image_height - new_h) // 2), bg_pil)
-        except Exception:
-            st.error("خطأ في قراءة الخلفية.")
-            
-    draw = ImageDraw.Draw(img)
-    padding = 80 
-
-    if show_frame:
-        draw.rectangle([(30, 30), (image_width - 30, image_height - 30)], outline=frame_color, width=5)
-        draw.rectangle([(40, 40), (image_width - 40, image_height - 40)], outline=frame_color, width=1)
-
-    max_width = image_width - (padding * 2)
-    max_height = image_height - (padding * 2)
-
-    # التحجيم الآلي للخطوط (النسب: 1 للتخريج، 2 للسند، 3 للحديث)
-    best_x = 10 
-    for x in range(60, 9, -1):
-        try:
-            f_in = ImageFont.truetype(selected_font_file, 2 * x) 
-            f_hd = ImageFont.truetype(selected_font_file, 3 * x) 
-            f_gr = ImageFont.truetype(selected_font_file, x)     
-        except OSError:
-            st.error("الملف المرفوع للخط تالف.")
-            st.stop()
-
-        w_in = wrap_text(intro_part, f_in, max_width)
-        w_hd = wrap_text(hadith_part, f_hd, max_width)
-        w_gr = wrap_text(grade_part, f_gr, max_width)
-
-        h_in = draw.multiline_textbbox((0,0), prepare_arabic(w_in), font=f_in, spacing=15)[3] if w_in else 0
-        h_hd = draw.multiline_textbbox((0,0), prepare_arabic(w_hd), font=f_hd, spacing=25)[3] if w_hd else 0
-        h_gr = draw.multiline_textbbox((0,0), prepare_arabic(w_gr), font=f_gr, spacing=15)[3] if w_gr else 0
-
-        total_h = h_in + h_hd + h_gr
-        if h_in and (h_hd or h_gr): total_h += gap
-        if h_hd and h_gr: total_h += gap
-
-        if total_h <= max_height:
-            best_x = x
-            break
-
-    font_intro = ImageFont.truetype(selected_font_file, 2 * best_x)
-    font_hadith = ImageFont.truetype(selected_font_file, 3 * best_x)
-    font_grade = ImageFont.truetype(selected_font_file, best_x)
-
-    wrapped_intro = prepare_arabic(wrap_text(intro_part, font_intro, max_width))
-    wrapped_hadith = prepare_arabic(wrap_text(hadith_part, font_hadith, max_width))
-    wrapped_grade = prepare_arabic(wrap_text(grade_part, font_grade, max_width))
-
-    x_intro, anchor_intro, align_in = get_alignment_props(align_intro, image_width, padding)
-    x_hadith, anchor_hadith, align_hd = get_alignment_props(align_hadith, image_width, padding)
-    x_grade, anchor_grade, align_gr = get_alignment_props(align_grade, image_width, padding)
-
-    # حساب الارتفاعات النهائية لمعرفة إحداثيات التمركز
-    h_in = draw.multiline_textbbox((0,0), wrapped_intro, font=font_intro, spacing=15)[3] if wrapped_intro else 0
-    h_hd = draw.multiline_textbbox((0,0), wrapped_hadith, font=font_hadith, spacing=25)[3] if wrapped_hadith else 0
-    h_gr = draw.multiline_textbbox((0,0), wrapped_grade, font=font_grade, spacing=15)[3] if wrapped_grade else 0
-
-    total_final_h = h_in + h_hd + h_gr
-    if h_in and (h_hd or h_gr): total_final_h += gap
-    if h_hd and h_gr: total_final_h += gap
-
-    start_y = max(padding, (image_height - total_final_h) / 2)
-
-    # دالة رسم النص مع تظليل خلفيته بدقة حسب مقاس الكلام
-    def draw_highlighted_text(x, y, text, font, text_color, bg_color, anchor, align, spacing):
-        if not text: return 0
-        
-        # استخراج الإحداثيات الدقيقة للصندوق المحيط بالنص
-        bbox = draw.multiline_textbbox((x, y), text, font=font, anchor=anchor, align=align, spacing=spacing)
-        
-        if show_text_bg:
-            rgb = hex_to_rgb(bg_color)
-            # رسم مستطيل يحيط بالنص تماماً (مع هامش بسيط 10 بكسل)
-            rect_coords = [(bbox[0] - 15, bbox[1] - 10), (bbox[2] + 15, bbox[3] + 10)]
-            draw.rectangle(rect_coords, fill=rgb)
-            
-        # رسم النص فوق التظليل
-        draw.multiline_text((x, y), text, font=font, fill=text_color, anchor=anchor, align=align, spacing=spacing)
-        return bbox[3] - bbox[1] # إرجاع الارتفاع
-
-    # رسم الأجزاء بشكل متتابع
-    if wrapped_intro:
-        h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, intro_text_color, intro_bg_color, anchor_intro, align_in, 15)
-        start_y += h + gap
-        
-    if wrapped_hadith:
-        h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, hadith_text_color, hadith_bg_color, anchor_hadith, align_hd, 25)
-        start_y += h + gap
-        
-    if wrapped_grade:
-        draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
+    buf = io.BytesIO()
+    st.session_state['final_image'].save(buf, format="PNG")
+    byte_im = buf.getvalue()
+    
+    st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_pro_bg.png", mime="image/png")
