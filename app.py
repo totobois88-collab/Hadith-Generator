@@ -1,34 +1,33 @@
 import streamlit as st
-from PIL import Image, ImageDraw, ImageFont, features
+from PIL import Image, ImageDraw, ImageFont
 import io
-import os
 import glob
 import re
 
-# التحقق من توفر محرك Raqm المتقدم (المسؤول عن دقة التشكيل والأقواس)
-HAS_RAQM = features.check('raqm')
-
-# استخدام المكتبات البديلة فقط في حال عدم توفر Raqm
-if not HAS_RAQM:
-    import arabic_reshaper
-    from bidi.algorithm import get_display
-
 # ================= إعدادات الصفحة =================
-st.set_page_config(page_title="صانع صور الأحاديث النبوية", page_icon="📜", layout="wide")
+st.set_page_config(page_title="صانع صور الأحاديث", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية 📜")
+st.write("أدخل النص، وسيقوم النظام بتوزيعه وضبط مقاساته ليلائم حجم الصورة.")
 
-if HAS_RAQM:
-    st.success("⚡ محرك النصوص المتقدم (HarfBuzz / Raqm) يعمل: التشكيل، الأقواس، ورمز ﷺ ستظهر بأعلى دقة مطبعية.")
-else:
-    st.info("ℹ️ يعمل التطبيق بمحرك التوافق الاحتياطي.")
+# ================= التحقق من دعم Raqm =================
+try:
+    HAS_RAQM = ImageFont.core.HAVE_RAQM
+except AttributeError:
+    HAS_RAQM = False
+
+if not HAS_RAQM:
+    st.warning(
+        "⚠️ مكتبة Pillow الحالية لا تدعم محرك Raqm، لذلك قد يظهر التشكيل بشكل غير دقيق "
+        "وقد تظهر بعض الرموز كمربعات. أضف `libraqm-dev` إلى ملف packages.txt عند النشر على Streamlit Cloud."
+    )
 
 # ================= البحث عن الخطوط =================
 available_fonts = glob.glob("*.ttf") + glob.glob("*.otf")
 if not available_fonts:
-    st.warning("لم يتم العثور على خطوط في المجلد. يرجى إضافة ملفات .ttf (ينصح بخط Amiri أو Scheherazade أو KFGQPC لدعم التشكيل ورمز ﷺ والأقواس بشكل سليم).")
+    st.warning("لم يتم العثور على خطوط. يرجى رفع ملفات .ttf إلى المستودع.")
 
-# ================= القائمة الجانبية =================
+# ================= القائمة الجانبية (إعدادات التصميم) =================
 st.sidebar.header("🎨 إعدادات التصميم")
 
 st.sidebar.subheader("1. أبعاد الصورة")
@@ -51,22 +50,22 @@ align_opts = ["وسط (Center)", "يمين (Right)", "يسار (Left)"]
 
 col_in1, col_in2 = st.sidebar.columns(2)
 align_intro = col_in1.selectbox("محاذاة السند:", align_opts, index=0)
-intro_size = col_in2.number_input("حجم السند:", min_value=10, max_value=150, value=38, disabled=auto_scale)
+intro_size = col_in2.number_input("حجم السند:", min_value=10, max_value=150, value=40, disabled=auto_scale)
 
 col_hd1, col_hd2 = st.sidebar.columns(2)
 align_hadith = col_hd1.selectbox("محاذاة الحديث:", align_opts, index=0)
-hadith_size = col_hd2.number_input("حجم الحديث:", min_value=10, max_value=250, value=65, disabled=auto_scale)
+hadith_size = col_hd2.number_input("حجم الحديث:", min_value=10, max_value=250, value=75, disabled=auto_scale)
 
 col_gr1, col_gr2 = st.sidebar.columns(2)
 align_grade = col_gr1.selectbox("محاذاة التخريج:", align_opts, index=0)
-grade_size = col_gr2.number_input("حجم التخريج:", min_value=10, max_value=150, value=34, disabled=auto_scale)
+grade_size = col_gr2.number_input("حجم التخريج:", min_value=10, max_value=150, value=40, disabled=auto_scale)
 
 st.sidebar.subheader("4. ألوان الخطوط")
-intro_text_color = st.sidebar.color_picker("لون نص السند:", "#3D3D3D")
-hadith_text_color = st.sidebar.color_picker("لون نص الحديث:", "#111111")
-grade_text_color = st.sidebar.color_picker("لون التخريج:", "#6E4720")
+intro_text_color = st.sidebar.color_picker("لون نص السند:", "#4A4A4A")
+hadith_text_color = st.sidebar.color_picker("لون نص الحديث:", "#1A1A1A")
+grade_text_color = st.sidebar.color_picker("لون التخريج:", "#785028")
 
-st.sidebar.subheader("5. أشرطة وتظليل النصوص")
+st.sidebar.subheader("5. أشرطة (تظليل) خلف النصوص")
 show_text_bg = st.sidebar.checkbox("تفعيل تظليل ملون خلف النصوص", value=False)
 intro_bg_color = "#F0E6D2"
 hadith_bg_color = "#E8E8E8"
@@ -81,123 +80,94 @@ st.sidebar.subheader("6. إعدادات أخرى")
 bg_color = st.sidebar.color_picker("لون خلفية الصورة العام:", "#FDFBF7")
 show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", value=True)
 frame_color = st.sidebar.color_picker("لون الإطار العام:", "#D3C5A3")
-gap = st.sidebar.slider("المسافة بين الأقسام:", 10, 200, 45)
+gap = st.sidebar.slider("المسافة بين الأقسام:", 20, 200, 60)
 
-st.sidebar.subheader("7. الخط والرموز")
+st.sidebar.subheader("7. الخط")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
-normalize_brackets = st.sidebar.checkbox("استبدال أقواس الآيات والحاضنات النادرة بأقواس قياسية (يمنع المربعات)", value=True)
 
 # ================= واجهة الإدخال =================
-col1, _ = st.columns([2, 1]) 
+col1, col2 = st.columns([2, 1])
 with col1:
-    enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي للحديث", value=True)
+    enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي (بالكلمات المفتاحية)", value=True)
     full_text_input = st.text_area(
         "أدخل النص هنا:",
-        value="", 
+        value="",
         height=200,
-        placeholder="الصق نص الحديث هنا محتوياً على التشكيل، الأقواس، ورمز ﷺ..."
+        placeholder="الصق نص الحديث هنا...\nإذا ألغيت الذكاء الاصطناعي، اترك سطراً فارغاً بين السند والحديث والتخريج."
     )
 
-# ================= معالجة وتنظيف النصوص =================
-def sanitize_brackets(text):
-    """استبدال الحاضنات المزخرفة فقط إذا تم تفعيل الخيار لتفادي المربعات، دون المساس برمز ﷺ"""
-    if not text: return ""
-    if normalize_brackets:
-        bracket_map = {
-            "﴿": "(",
-            "﴾": ")",
-            "«": '"',
-            "»": '"',
-            "“": '"',
-            "”": '"',
-            "[\'": "[",
-            "\']": "]"
-        }
-        for k, v in bracket_map.items():
-            text = text.replace(k, v)
-    return text
-
+# ================= خوارزميات تحليل النص =================
 def parse_text_smart(text):
-    if not text.strip(): return "", "", ""
+    if not text.strip():
+        return "", "", ""
     lines = text.split('\n')
     intro, hadith, grade = [], [], []
-    state = 0 
+    state = 0
     grade_keywords = ["رواه", "أخرجه", "صححه", "صحيح", "متفق عليه", "حسن", "رقم", "الألباني", "ابن باز", "الراوي:"]
     intro_end_keywords = ["قال:", "يقول:", "ﷺ", "صلى الله عليه وسلم:", "عنه:", "فيما يروي عن ربه"]
 
     for line in lines:
-        if not line.strip(): continue
-        if state == 1 and any(k in line for k in grade_keywords): state = 2
-        
+        if not line.strip():
+            continue
+        if state == 1 and any(k in line for k in grade_keywords):
+            state = 2
+
         if state == 0:
             intro.append(line)
-            if any(k in line for k in intro_end_keywords): state = 1
-        elif state == 1: hadith.append(line)
-        elif state == 2: grade.append(line)
-            
-    if not hadith and intro: return "", "\n".join(intro), ""
+            if any(k in line for k in intro_end_keywords):
+                state = 1
+        elif state == 1:
+            hadith.append(line)
+        elif state == 2:
+            grade.append(line)
+
+    if not hadith and intro:
+        return "", "\n".join(intro), ""
     return "\n".join(intro), "\n".join(hadith), "\n".join(grade)
 
+
 def parse_text_manual(text):
-    if not text.strip(): return "", "", ""
+    if not text.strip():
+        return "", "", ""
     parts = [p.strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
     intro, hadith, grade = "", "", ""
     if len(parts) >= 3:
         intro, hadith = parts[0], parts[1]
-        grade = "\n".join(parts[2:]) 
+        grade = "\n".join(parts[2:])
     elif len(parts) == 2:
         intro, hadith = parts[0], parts[1]
     elif len(parts) == 1:
         hadith = parts[0]
     return intro, hadith, grade
 
-cleaned_input = sanitize_brackets(full_text_input)
 
 if enable_smart_parse:
-    intro_part, hadith_part, grade_part = parse_text_smart(cleaned_input)
+    intro_part, hadith_part, grade_part = parse_text_smart(full_text_input)
 else:
-    intro_part, hadith_part, grade_part = parse_text_manual(cleaned_input)
+    intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
 
-# ================= معالجة التشكيل ومحاذاة الحروف =================
-def format_arabic(text):
-    """إعداد النص وفق المحرك المتاح دون تغيير رمز ﷺ"""
-    if not text.strip(): return ""
-    
-    if HAS_RAQM:
-        # مع محرك Raqm يتم إرسال النص الأصلي تماماً (مع التشكيل ورمز ﷺ) ليتولى HarfBuzz ربطه بنقاء
-        return text
-    else:
-        # المحرك الاحتياطي: إعدادات محسنة تمنع انحراف حركات التشكيل
-        reshaper_config = {
-            'delete_harakat': False,
-            'support_ligatures': True,
-            'shift_harakat_position': False
-        }
-        reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
-        reshaped = reshaper.reshape(text)
-        return get_display(reshaped, base_dir='R')
+# ================= أدوات مساعدة =================
+def load_font(path, size):
+    """تحميل الخط مع تفعيل محرك Raqm لدعم التشكيل والعربية بشكل صحيح."""
+    try:
+        return ImageFont.truetype(path, size, layout_engine=ImageFont.Layout.RAQM)
+    except Exception:
+        return ImageFont.truetype(path, size)
 
-def get_font(font_path, size):
-    if HAS_RAQM:
-        return ImageFont.truetype(font_path, size, layout_engine=ImageFont.Layout.RAQM)
-    return ImageFont.truetype(font_path, size)
 
-def wrap_text(text, font, max_width, draw):
-    """توزيع الأسطر مع فحص العرض الحقيقي للكلمات المشكلة ورمز ﷺ"""
-    if not text.strip(): return ""
+def wrap_text(text, font, max_width):
+    if not text.strip():
+        return ""
     lines = []
-    
     for paragraph in text.split('\n'):
         words = paragraph.split(' ')
         current_line = []
         for word in words:
             test_line = ' '.join(current_line + [word]) if current_line else word
-            prepared = format_arabic(test_line)
-            
-            bbox = draw.textbbox((0, 0), prepared, font=font, direction='rtl' if HAS_RAQM else None)
-            w = bbox[2] - bbox[0]
-            
-            if w <= max_width:
+            bbox = font.getbbox(test_line, direction="rtl", language="ar")
+            test_width = bbox[2] - bbox[0] if bbox else 0
+
+            if test_width <= max_width:
                 current_line.append(word)
             else:
                 if current_line:
@@ -207,34 +177,47 @@ def wrap_text(text, font, max_width, draw):
                     lines.append(word)
         if current_line:
             lines.append(' '.join(current_line))
-            
-    return '\n'.join([format_arabic(l) for l in lines])
+    return '\n'.join(lines)
+
 
 def get_alignment_props(choice, width, pad):
-    if "يمين" in choice: return width - pad, "ra", "right"
-    elif "يسار" in choice: return pad, "la", "left"
-    else: return width / 2, "ma", "center"
+    if "يمين" in choice:
+        return width - pad, "ra", "right"
+    elif "يسار" in choice:
+        return pad, "la", "left"
+    else:
+        return width / 2, "ma", "center"
+
 
 def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def text_height(draw, text, font, spacing):
+    if not text:
+        return 0
+    bbox = draw.multiline_textbbox(
+        (0, 0), text, font=font, spacing=spacing, direction="rtl", language="ar"
+    )
+    return bbox[3]
+
 
 # ================= توليد الصورة =================
 if st.button("✨ توليد الصورة", type="primary"):
     if not selected_font_file:
-        st.error("الرجاء اختيار ملف خط أولاً.")
-    elif not cleaned_input.strip():
-        st.error("الرجاء إدخال نص الحديث أولاً.")
+        st.error("الرجاء رفع خط أولاً لتوليد الصورة.")
+    elif not full_text_input.strip():
+        st.error("الرجاء إدخال نص الحديث لتوليد الصورة.")
     else:
         try:
             img = Image.new('RGB', (image_width, image_height), color=bg_color)
-            
-            # الخلفية
+
             if bg_image_file:
                 bg_pil = Image.open(bg_image_file).convert("RGBA")
                 if bg_scale_mode == "تمديد (Stretch)":
                     bg_pil = bg_pil.resize((image_width, image_height))
-                    img.paste(bg_pil, (0,0), bg_pil)
+                    img.paste(bg_pil, (0, 0), bg_pil)
                 elif bg_scale_mode == "ملء الشاشة (Cover)":
                     bg_ratio = bg_pil.width / bg_pil.height
                     img_ratio = image_width / image_height
@@ -251,93 +234,99 @@ if st.button("✨ توليد الصورة", type="primary"):
                     new_h = int(bg_pil.height * custom_scale / 100)
                     bg_pil = bg_pil.resize((new_w, new_h))
                     img.paste(bg_pil, ((image_width - new_w) // 2, (image_height - new_h) // 2), bg_pil)
-                    
-            draw = ImageDraw.Draw(img)
-            padding = 70 
 
-            # الإطار
+            draw = ImageDraw.Draw(img)
+            padding = 80
+
             if show_frame:
-                draw.rectangle([(25, 25), (image_width - 25, image_height - 25)], outline=frame_color, width=4)
-                draw.rectangle([(35, 35), (image_width - 35, image_height - 35)], outline=frame_color, width=1)
+                draw.rectangle([(30, 30), (image_width - 30, image_height - 30)], outline=frame_color, width=5)
+                draw.rectangle([(40, 40), (image_width - 40, image_height - 40)], outline=frame_color, width=1)
 
             max_width = image_width - (padding * 2)
             max_height = image_height - (padding * 2)
 
-            # التحجيم التلقائي
             if auto_scale:
-                best_x = 10 
-                for x in range(65, 9, -2):
-                    f_in = get_font(selected_font_file, int(1.8 * x)) 
-                    f_hd = get_font(selected_font_file, int(2.8 * x)) 
-                    f_gr = get_font(selected_font_file, int(1.2 * x))     
+                best_x = 10
+                for x in range(60, 9, -1):
+                    f_in = load_font(selected_font_file, 2 * x)
+                    f_hd = load_font(selected_font_file, 3 * x)
+                    f_gr = load_font(selected_font_file, x)
 
-                    w_in = wrap_text(intro_part, f_in, max_width, draw)
-                    w_hd = wrap_text(hadith_part, f_hd, max_width, draw)
-                    w_gr = wrap_text(grade_part, f_gr, max_width, draw)
+                    w_in = wrap_text(intro_part, f_in, max_width)
+                    w_hd = wrap_text(hadith_part, f_hd, max_width)
+                    w_gr = wrap_text(grade_part, f_gr, max_width)
 
-                    dir_opt = 'rtl' if HAS_RAQM else None
-                    h_in = draw.multiline_textbbox((0,0), w_in, font=f_in, spacing=15, direction=dir_opt)[3] if w_in else 0
-                    h_hd = draw.multiline_textbbox((0,0), w_hd, font=f_hd, spacing=25, direction=dir_opt)[3] if w_hd else 0
-                    h_gr = draw.multiline_textbbox((0,0), w_gr, font=f_gr, spacing=15, direction=dir_opt)[3] if w_gr else 0
+                    h_in = text_height(draw, w_in, f_in, 15)
+                    h_hd = text_height(draw, w_hd, f_hd, 25)
+                    h_gr = text_height(draw, w_gr, f_gr, 15)
 
                     total_h = h_in + h_hd + h_gr
-                    if h_in and (h_hd or h_gr): total_h += gap
-                    if h_hd and h_gr: total_h += gap
+                    if h_in and (h_hd or h_gr):
+                        total_h += gap
+                    if h_hd and h_gr:
+                        total_h += gap
 
                     if total_h <= max_height:
                         best_x = x
                         break
 
-                font_intro = get_font(selected_font_file, int(1.8 * best_x))
-                font_hadith = get_font(selected_font_file, int(2.8 * best_x))
-                font_grade = get_font(selected_font_file, int(1.2 * best_x))
+                font_intro = load_font(selected_font_file, 2 * best_x)
+                font_hadith = load_font(selected_font_file, 3 * best_x)
+                font_grade = load_font(selected_font_file, best_x)
             else:
-                font_intro = get_font(selected_font_file, intro_size)
-                font_hadith = get_font(selected_font_file, hadith_size)
-                font_grade = get_font(selected_font_file, grade_size)
+                font_intro = load_font(selected_font_file, intro_size)
+                font_hadith = load_font(selected_font_file, hadith_size)
+                font_grade = load_font(selected_font_file, grade_size)
 
-            # تحضير النصوص النهائية
-            wrapped_intro = wrap_text(intro_part, font_intro, max_width, draw)
-            wrapped_hadith = wrap_text(hadith_part, font_hadith, max_width, draw)
-            wrapped_grade = wrap_text(grade_part, font_grade, max_width, draw)
+            wrapped_intro = wrap_text(intro_part, font_intro, max_width)
+            wrapped_hadith = wrap_text(hadith_part, font_hadith, max_width)
+            wrapped_grade = wrap_text(grade_part, font_grade, max_width)
 
             x_intro, anchor_intro, align_in = get_alignment_props(align_intro, image_width, padding)
             x_hadith, anchor_hadith, align_hd = get_alignment_props(align_hadith, image_width, padding)
             x_grade, anchor_grade, align_gr = get_alignment_props(align_grade, image_width, padding)
 
-            dir_opt = 'rtl' if HAS_RAQM else None
-            h_in = draw.multiline_textbbox((0,0), wrapped_intro, font=font_intro, spacing=15, direction=dir_opt)[3] if wrapped_intro else 0
-            h_hd = draw.multiline_textbbox((0,0), wrapped_hadith, font=font_hadith, spacing=25, direction=dir_opt)[3] if wrapped_hadith else 0
-            h_gr = draw.multiline_textbbox((0,0), wrapped_grade, font=font_grade, spacing=15, direction=dir_opt)[3] if wrapped_grade else 0
+            h_in = text_height(draw, wrapped_intro, font_intro, 15)
+            h_hd = text_height(draw, wrapped_hadith, font_hadith, 25)
+            h_gr = text_height(draw, wrapped_grade, font_grade, 15)
 
             total_final_h = h_in + h_hd + h_gr
-            if h_in and (h_hd or h_gr): total_final_h += gap
-            if h_hd and h_gr: total_final_h += gap
+            if h_in and (h_hd or h_gr):
+                total_final_h += gap
+            if h_hd and h_gr:
+                total_final_h += gap
 
             start_y = max(padding, (image_height - total_final_h) / 2)
 
-            def draw_block(x, y, text, font, text_color, bg_color_val, anchor, align, spacing):
-                if not text: return 0
-                bbox = draw.multiline_textbbox((x, y), text, font=font, anchor=anchor, align=align, spacing=spacing, direction=dir_opt)
-                
+            def draw_highlighted_text(x, y, text, font, text_color, bg_color_hex, anchor, align, spacing):
+                if not text:
+                    return 0
+                bbox = draw.multiline_textbbox(
+                    (x, y), text, font=font, anchor=anchor, align=align,
+                    spacing=spacing, direction="rtl", language="ar"
+                )
+
                 if show_text_bg:
-                    rgb = hex_to_rgb(bg_color_val)
-                    rect_coords = [(bbox[0] - 15, bbox[1] - 8), (bbox[2] + 15, bbox[3] + 8)]
+                    rgb = hex_to_rgb(bg_color_hex)
+                    rect_coords = [(bbox[0] - 15, bbox[1] - 10), (bbox[2] + 15, bbox[3] + 10)]
                     draw.rectangle(rect_coords, fill=rgb)
-                    
-                draw.multiline_text((x, y), text, font=font, fill=text_color, anchor=anchor, align=align, spacing=spacing, direction=dir_opt)
+
+                draw.multiline_text(
+                    (x, y), text, font=font, fill=text_color, anchor=anchor,
+                    align=align, spacing=spacing, direction="rtl", language="ar"
+                )
                 return bbox[3] - bbox[1]
 
             if wrapped_intro:
-                h = draw_block(x_intro, start_y, wrapped_intro, font_intro, intro_text_color, intro_bg_color, anchor_intro, align_in, 15)
+                h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, intro_text_color, intro_bg_color, anchor_intro, align_in, 15)
                 start_y += h + gap
-                
+
             if wrapped_hadith:
-                h = draw_block(x_hadith, start_y, wrapped_hadith, font_hadith, hadith_text_color, hadith_bg_color, anchor_hadith, align_hd, 25)
+                h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, hadith_text_color, hadith_bg_color, anchor_hadith, align_hd, 25)
                 start_y += h + gap
-                
+
             if wrapped_grade:
-                draw_block(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
+                draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
 
             st.session_state['final_image'] = img
 
@@ -346,9 +335,9 @@ if st.button("✨ توليد الصورة", type="primary"):
 
 if 'final_image' in st.session_state:
     st.image(st.session_state['final_image'], caption="معاينة الصورة النهائية", use_column_width=True)
-    
+
     buf = io.BytesIO()
     st.session_state['final_image'].save(buf, format="PNG")
     byte_im = buf.getvalue()
-    
-    st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_card.png", mime="image/png")
+
+    st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_pro_bg.png", mime="image/png")
