@@ -60,7 +60,6 @@ gap = st.sidebar.slider("المسافة بين الأقسام:", 20, 200, 60)
 
 st.sidebar.subheader("7. الخط والمربعات")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
-# هذا الخيار هو الحل السحري لمشكلة المربعات لخط Noto وغيره
 use_ligatures = st.sidebar.checkbox("إصلاح تشابك الحروف (Ligatures) - مفعّل لخط Noto", value=True)
 
 # ================= واجهة الإدخال =================
@@ -68,7 +67,6 @@ col1, col2 = st.columns([2, 1])
 with col1:
     enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي للنص (التعرف الآلي)", value=True)
     
-    # مربع النص أصبح فارغاً تماماً ولا يمسح ما كتبه المستخدم عند تغيير الخيارات
     full_text_input = st.text_area(
         "أدخل النص هنا:",
         value="", 
@@ -122,7 +120,7 @@ else:
 # ================= معالجة اللغة العربية =================
 reshaper_config = {
     'delete_harakat': False,
-    'support_ligatures': use_ligatures, # هنا ربطنا الزر بالبرمجة
+    'support_ligatures': use_ligatures, 
     'shift_harakat_position': False
 }
 reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
@@ -132,6 +130,7 @@ def prepare_arabic(text):
     text = text.replace("ﷺ", "صلى الله عليه وسلم").replace("ﷻ", "جل جلاله")
     return get_display(reshaper.reshape(text))
 
+# دالة الالتفاف المصححة
 def wrap_text(text, font, max_width):
     if not text.strip(): return ""
     lines = []
@@ -142,12 +141,17 @@ def wrap_text(text, font, max_width):
             test_line = ' '.join(current_line + [word]) if current_line else word
             test_bbox = font.getbbox(prepare_arabic(test_line))
             test_width = test_bbox[2] - test_bbox[0] if test_bbox else 0
-            if test_width <= max_width: current_line.append(word)
+            
+            if test_width <= max_width:
+                current_line.append(word)
             else:
-                if current_line: lines.append(' '.join(current_line))
-                current_line = [word]
-                else: lines.append(word)
-        if current_line: lines.append(' '.join(current_line))
+                if current_line:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+                else:
+                    lines.append(word)
+        if current_line:
+            lines.append(' '.join(current_line))
     return '\n'.join(lines)
 
 def get_alignment_props(choice, width, pad):
@@ -205,7 +209,7 @@ if st.button("✨ توليد الصورة", type="primary"):
     best_x = 10 
     for x in range(60, 9, -1):
         try:
-            f_in = ImageFont.truetype(selected_font_file, int(1.5 * x)) # السند أصغر قليلاً للجمالية
+            f_in = ImageFont.truetype(selected_font_file, int(1.5 * x)) 
             f_hd = ImageFont.truetype(selected_font_file, 3 * x) 
             f_gr = ImageFont.truetype(selected_font_file, x)     
         except OSError:
@@ -250,7 +254,6 @@ if st.button("✨ توليد الصورة", type="primary"):
 
     start_y = max(padding, (image_height - total_final_h) / 2)
 
-    # دالة مساعدة لرسم خلفية (شريط ملون) للنص
     def draw_bg_ribbon(y, height, color):
         if show_text_bg and height > 0:
             draw.rectangle([(padding - 20, y - 10), (image_width - padding + 20, y + height + 10)], fill=color)
