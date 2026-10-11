@@ -22,10 +22,17 @@ if not HAS_RAQM:
         "وقد تظهر بعض الرموز كمربعات. أضف `libraqm-dev` إلى ملف packages.txt عند النشر على Streamlit Cloud."
     )
 
-# ================= البحث عن الخطوط =================
+# ================= البحث عن الخطوط وإعداد الخط الافتراضي =================
 available_fonts = glob.glob("*.ttf") + glob.glob("*.otf")
+default_font_index = 0
+
 if not available_fonts:
     st.warning("لم يتم العثور على خطوط. يرجى رفع ملفات .ttf إلى المستودع.")
+else:
+    # البحث عن خط عثمان طه لجعله الافتراضي
+    target_font = "kfgqpc-uthman-taha-naskh-bold.ttf"
+    if target_font in available_fonts:
+        default_font_index = available_fonts.index(target_font)
 
 # ================= القائمة الجانبية (إعدادات التصميم) =================
 st.sidebar.header("🎨 إعدادات التصميم")
@@ -84,49 +91,19 @@ st.sidebar.subheader("7. إعدادات أخرى")
 bg_color = st.sidebar.color_picker("لون خلفية الصورة العام:", "#FDFBF7")
 show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", value=True)
 frame_color = st.sidebar.color_picker("لون الإطار العام:", "#D3C5A3")
-selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
+selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts, index=default_font_index) if available_fonts else None
 
 # ================= واجهة الإدخال =================
 col1, col2 = st.columns([2, 1])
 with col1:
-    enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي (بالكلمات المفتاحية)", value=True)
     full_text_input = st.text_area(
         "أدخل النص هنا:",
         value="",
         height=200,
-        placeholder="الصق نص الحديث هنا...\nإذا ألغيت الذكاء الاصطناعي، اترك سطراً فارغاً بين السند والحديث والتخريج."
+        placeholder="الصق نص الحديث هنا...\nيجب ترك سطر فارغ (اضغط Enter مرتين) للفصل بين السند، والحديث، والتخريج."
     )
 
-# ================= خوارزميات تحليل النص =================
-def parse_text_smart(text):
-    if not text.strip():
-        return "", "", ""
-    lines = text.split('\n')
-    intro, hadith, grade = [], [], []
-    state = 0
-    grade_keywords = ["رواه", "أخرجه", "صححه", "صحيح", "متفق عليه", "حسن", "رقم", "الألباني", "ابن باز", "الراوي:"]
-    intro_end_keywords = ["قال:", "يقول:", "ﷺ", "صلى الله عليه وسلم:", "عنه:", "فيما يروي عن ربه"]
-
-    for line in lines:
-        if not line.strip():
-            continue
-        if state == 1 and any(k in line for k in grade_keywords):
-            state = 2
-
-        if state == 0:
-            intro.append(line)
-            if any(k in line for k in intro_end_keywords):
-                state = 1
-        elif state == 1:
-            hadith.append(line)
-        elif state == 2:
-            grade.append(line)
-
-    if not hadith and intro:
-        return "", "\n".join(intro), ""
-    return "\n".join(intro), "\n".join(hadith), "\n".join(grade)
-
-
+# ================= خوارزمية تحليل النص (اليدوي) =================
 def parse_text_manual(text):
     if not text.strip():
         return "", "", ""
@@ -141,16 +118,12 @@ def parse_text_manual(text):
         hadith = parts[0]
     return intro, hadith, grade
 
+intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
 
-if enable_smart_parse:
-    intro_part, hadith_part, grade_part = parse_text_smart(full_text_input)
-else:
-    intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
-
-# عرض النتيجة للمستخدم ليراها قبل التوليد (شفافية الذكاء الاصطناعي)
+# عرض النتيجة للمستخدم ليراها قبل التوليد 
 with col1:
     if full_text_input.strip():
-        with st.expander("🔍 اضغط هنا لرؤية كيف قام النظام بتقسيم النص:"):
+        with st.expander("🔍 اضغط هنا لمعاينة كيف تم تقسيم النص (بناءً على الأسطر الفارغة):"):
             st.info(f"**السند:**\n{intro_part}")
             st.success(f"**الحديث:**\n{hadith_part}")
             st.warning(f"**التخريج:**\n{grade_part}")
