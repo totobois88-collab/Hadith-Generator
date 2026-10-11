@@ -11,12 +11,12 @@ import re
 st.set_page_config(page_title="صانع صور الأحاديث الذكي", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية الذكي 📜")
-st.write("أدخل النص، وسيقوم النظام بتوزيعه وضبط مقاساته ليلائم حجم الصورة والخلفية آلياً.")
+st.info("💡 **نصيحة لتشكيل مثالي:** لتجنب المربعات وضمان التزام التشكيل بالحرف بدقة، يُنصح باستخدام خط **Amiri** أو **KFGQPC Uthman Taha** بدلاً من خط Noto.")
 
 # ================= البحث عن الخطوط =================
 available_fonts = glob.glob("*.ttf") + glob.glob("*.otf")
 if not available_fonts:
-    st.warning("لم يتم العثور على خطوط. يرجى رفع ملفات .ttf (مثل NotoNaskhArabic) إلى المستودع.")
+    st.warning("لم يتم العثور على خطوط. يرجى رفع ملفات .ttf إلى المستودع.")
 
 # ================= القائمة الجانبية (إعدادات التصميم) =================
 st.sidebar.header("🎨 إعدادات التصميم")
@@ -48,7 +48,7 @@ grade_text_color = st.sidebar.color_picker("لون التخريج:", "#785028")
 st.sidebar.subheader("5. أشرطة خلفية للنصوص (Ribbons)")
 show_text_bg = st.sidebar.checkbox("تفعيل أشرطة ملونة خلف النصوص", value=False)
 
-# [الإصلاح هنا]: تعريف المتغيرات بقيم افتراضية لتجنب خطأ NameError
+# تم ربط الألوان بقيم افتراضية لتفادي الأخطاء، وسيتم قراءتها بشكل صحيح الآن
 intro_bg_color = "#F0E6D2"
 hadith_bg_color = "#E8E8E8"
 grade_bg_color = "#F0E6D2"
@@ -64,15 +64,13 @@ show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", valu
 frame_color = st.sidebar.color_picker("لون الإطار العام:", "#D3C5A3")
 gap = st.sidebar.slider("المسافة بين الأقسام:", 20, 200, 60)
 
-st.sidebar.subheader("7. الخط والمربعات")
+st.sidebar.subheader("7. نوع الخط")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
-use_ligatures = st.sidebar.checkbox("إصلاح تشابك الحروف (Ligatures) - مفعّل لخط Noto", value=True)
 
 # ================= واجهة الإدخال =================
 col1, col2 = st.columns([2, 1]) 
 with col1:
     enable_smart_parse = st.checkbox("🤖 تفعيل التقسيم الذكي للنص (التعرف الآلي)", value=True)
-    
     full_text_input = st.text_area(
         "أدخل النص هنا:",
         value="", 
@@ -123,11 +121,12 @@ if enable_smart_parse:
 else:
     intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
 
-# ================= معالجة اللغة العربية =================
+# ================= معالجة اللغة العربية والتشكيل =================
+# تم ضبط الإعدادات لتتوافق بأفضل شكل ممكن مع الحركات (التشكيل)
 reshaper_config = {
     'delete_harakat': False,
-    'support_ligatures': use_ligatures, 
-    'shift_harakat_position': False
+    'support_ligatures': True, 
+    'shift_harakat_position': True 
 }
 reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
 
@@ -163,6 +162,11 @@ def get_alignment_props(choice, width, pad):
     if "يمين" in choice: return width - pad, "ra", "right"
     elif "يسار" in choice: return pad, "la", "left"
     else: return width / 2, "ma", "center"
+
+# دالة تحويل اللون لتأكيد عمل الأشرطة
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
 # ================= توليد الصورة =================
 if st.button("✨ توليد الصورة", type="primary"):
@@ -259,11 +263,14 @@ if st.button("✨ توليد الصورة", type="primary"):
 
     start_y = max(padding, (image_height - total_final_h) / 2)
 
-    def draw_bg_ribbon(y, height, color):
+    # دالة رسم الشريط המلون خلف النص بإحداثيات دقيقة
+    def draw_bg_ribbon(y, height, hex_color):
         if show_text_bg and height > 0:
-            draw.rectangle([(padding - 20, y - 10), (image_width - padding + 20, y + height + 10)], fill=color)
+            rgb = hex_to_rgb(hex_color)
+            # رسم مستطيل يغطي عرض الصورة (مع ترك هوامش بسيطة) بارتفاع النص + 20 بكسل للتوسعة
+            draw.rectangle([(padding - 30, y - 10), (image_width - padding + 30, y + height + 10)], fill=rgb)
 
-    # رسم الأشرطة والنصوص
+    # رسم الأشرطة والنصوص بترتيب صحيح (الشريط أولاً ثم النص فوقه)
     if wrapped_intro:
         draw_bg_ribbon(start_y, h_in, intro_bg_color)
         draw.multiline_text((x_intro, start_y), wrapped_intro, font=font_intro, fill=intro_text_color, anchor=anchor_intro, align=align_in, spacing=15)
