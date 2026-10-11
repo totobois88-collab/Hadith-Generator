@@ -76,13 +76,14 @@ if show_text_bg:
     hadith_bg_color = st.sidebar.color_picker("لون تظليل الحديث:", "#E8E8E8")
     grade_bg_color = st.sidebar.color_picker("لون تظليل التخريج:", "#F0E6D2")
 
-st.sidebar.subheader("6. إعدادات أخرى")
+st.sidebar.subheader("6. المسافات بين الأقسام (التباعد)")
+gap_intro_hadith = st.sidebar.slider("المسافة بين السند والحديث:", 0, 200, 60)
+gap_hadith_grade = st.sidebar.slider("المسافة بين الحديث والتخريج:", 0, 200, 60)
+
+st.sidebar.subheader("7. إعدادات أخرى")
 bg_color = st.sidebar.color_picker("لون خلفية الصورة العام:", "#FDFBF7")
 show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", value=True)
 frame_color = st.sidebar.color_picker("لون الإطار العام:", "#D3C5A3")
-gap = st.sidebar.slider("المسافة بين الأقسام:", 20, 200, 60)
-
-st.sidebar.subheader("7. الخط")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts) if available_fonts else None
 
 # ================= واجهة الإدخال =================
@@ -145,6 +146,14 @@ if enable_smart_parse:
     intro_part, hadith_part, grade_part = parse_text_smart(full_text_input)
 else:
     intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
+
+# عرض النتيجة للمستخدم ليراها قبل التوليد (شفافية الذكاء الاصطناعي)
+with col1:
+    if full_text_input.strip():
+        with st.expander("🔍 اضغط هنا لرؤية كيف قام النظام بتقسيم النص:"):
+            st.info(f"**السند:**\n{intro_part}")
+            st.success(f"**الحديث:**\n{hadith_part}")
+            st.warning(f"**التخريج:**\n{grade_part}")
 
 # ================= أدوات مساعدة =================
 def load_font(path, size):
@@ -262,9 +271,9 @@ if st.button("✨ توليد الصورة", type="primary"):
 
                     total_h = h_in + h_hd + h_gr
                     if h_in and (h_hd or h_gr):
-                        total_h += gap
+                        total_h += gap_intro_hadith
                     if h_hd and h_gr:
-                        total_h += gap
+                        total_h += gap_hadith_grade
 
                     if total_h <= max_height:
                         best_x = x
@@ -292,9 +301,9 @@ if st.button("✨ توليد الصورة", type="primary"):
 
             total_final_h = h_in + h_hd + h_gr
             if h_in and (h_hd or h_gr):
-                total_final_h += gap
+                total_final_h += gap_intro_hadith
             if h_hd and h_gr:
-                total_final_h += gap
+                total_final_h += gap_hadith_grade
 
             start_y = max(padding, (image_height - total_final_h) / 2)
 
@@ -319,11 +328,11 @@ if st.button("✨ توليد الصورة", type="primary"):
 
             if wrapped_intro:
                 h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, intro_text_color, intro_bg_color, anchor_intro, align_in, 15)
-                start_y += h + gap
+                start_y += h + gap_intro_hadith
 
             if wrapped_hadith:
                 h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, hadith_text_color, hadith_bg_color, anchor_hadith, align_hd, 25)
-                start_y += h + gap
+                start_y += h + gap_hadith_grade
 
             if wrapped_grade:
                 draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
