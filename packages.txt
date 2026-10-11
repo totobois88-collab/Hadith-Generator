@@ -1,0 +1,2 @@
+libraqm-dev
+libfreetype6-dev
