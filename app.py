@@ -29,7 +29,6 @@ default_font_index = 0
 if not available_fonts:
     st.warning("لم يتم العثور على خطوط. يرجى رفع ملفات .ttf إلى المستودع.")
 else:
-    # البحث عن خط عثمان طه لجعله الافتراضي
     target_font = "kfgqpc-uthman-taha-naskh-bold.ttf"
     if target_font in available_fonts:
         default_font_index = available_fonts.index(target_font)
@@ -93,6 +92,47 @@ show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", valu
 frame_color = st.sidebar.color_picker("لون الإطار العام:", "#D3C5A3")
 selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts, index=default_font_index) if available_fonts else None
 
+# ================= اللوغو (الشعار) والخريطة المصغرة =================
+st.sidebar.subheader("8. الشعار (اللوغو)")
+logo_file = st.sidebar.file_uploader("رفع الشعار (PNG شفاف أو JPG):", type=["png", "jpg", "jpeg"])
+
+if logo_file:
+    logo_size_pct = st.sidebar.slider("حجم الشعار (%)", min_value=5, max_value=100, value=20)
+    logo_opacity = st.sidebar.slider("شفافية الشعار (%)", min_value=10, max_value=100, value=100)
+    
+    st.sidebar.write("**موضع الشعار:**")
+    logo_x_pct = st.sidebar.slider("المحور الأفقي (يمين - يسار)", 0, 100, 50, label_visibility="collapsed")
+    logo_y_pct = st.sidebar.slider("المحور العمودي (أعلى - أسفل)", 0, 100, 90, label_visibility="collapsed")
+    
+    # خريطة مصغرة لمعاينة موقع اللوغو
+    try:
+        preview_logo = Image.open(logo_file)
+        aspect = preview_logo.height / preview_logo.width
+        
+        map_w = 200
+        map_h = int(map_w * (image_height / image_width))
+        minimap = Image.new('RGB', (map_w, map_h), color="#ECECEC")
+        draw_map = ImageDraw.Draw(minimap)
+        
+        # رسم إطار الخريطة
+        draw_map.rectangle([(0,0), (map_w-1, map_h-1)], outline="#B0B0B0", width=2)
+        
+        # حجم الشعار في الخريطة المصغرة
+        logo_map_w = max(5, int(map_w * (logo_size_pct / 100.0)))
+        logo_map_h = max(5, int(logo_map_w * aspect))
+        
+        # حساب الإحداثيات
+        map_x = int((map_w - logo_map_w) * (logo_x_pct / 100.0))
+        map_y = int((map_h - logo_map_h) * (logo_y_pct / 100.0))
+        
+        # رسم المربع الممثل للشعار
+        draw_map.rectangle([(map_x, map_y), (map_x + logo_map_w, map_y + logo_map_h)], fill="#FF4B4B", outline="#990000")
+        
+        st.sidebar.image(minimap, caption="الخريطة المصغرة (المربع الأحمر يمثل موقع اللوغو)")
+    except Exception:
+        pass
+
+
 # ================= واجهة الإدخال =================
 col1, col2 = st.columns([2, 1])
 with col1:
@@ -120,7 +160,6 @@ def parse_text_manual(text):
 
 intro_part, hadith_part, grade_part = parse_text_manual(full_text_input)
 
-# عرض النتيجة للمستخدم ليراها قبل التوليد 
 with col1:
     if full_text_input.strip():
         with st.expander("🔍 اضغط هنا لمعاينة كيف تم تقسيم النص (بناءً على الأسطر الفارغة):"):
@@ -130,7 +169,6 @@ with col1:
 
 # ================= أدوات مساعدة =================
 def load_font(path, size):
-    """تحميل الخط مع تفعيل محرك Raqm لدعم التشكيل والعربية بشكل صحيح."""
     try:
         return ImageFont.truetype(path, size, layout_engine=ImageFont.Layout.RAQM)
     except Exception:
@@ -163,12 +201,9 @@ def wrap_text(text, font, max_width):
 
 
 def get_alignment_props(choice, width, pad):
-    if "يمين" in choice:
-        return width - pad, "ra", "right"
-    elif "يسار" in choice:
-        return pad, "la", "left"
-    else:
-        return width / 2, "ma", "center"
+    if "يمين" in choice: return width - pad, "ra", "right"
+    elif "يسار" in choice: return pad, "la", "left"
+    else: return width / 2, "ma", "center"
 
 
 def hex_to_rgb(hex_color):
@@ -179,9 +214,7 @@ def hex_to_rgb(hex_color):
 def text_height(draw, text, font, spacing):
     if not text:
         return 0
-    bbox = draw.multiline_textbbox(
-        (0, 0), text, font=font, spacing=spacing, direction="rtl", language="ar"
-    )
+    bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=spacing, direction="rtl", language="ar")
     return bbox[3]
 
 
@@ -195,6 +228,7 @@ if st.button("✨ توليد الصورة", type="primary"):
         try:
             img = Image.new('RGB', (image_width, image_height), color=bg_color)
 
+            # --- رسم الخلفية ---
             if bg_image_file:
                 bg_pil = Image.open(bg_image_file).convert("RGBA")
                 if bg_scale_mode == "تمديد (Stretch)":
@@ -227,6 +261,7 @@ if st.button("✨ توليد الصورة", type="primary"):
             max_width = image_width - (padding * 2)
             max_height = image_height - (padding * 2)
 
+            # --- حساب الخطوط ---
             if auto_scale:
                 best_x = 10
                 for x in range(60, 9, -1):
@@ -243,10 +278,8 @@ if st.button("✨ توليد الصورة", type="primary"):
                     h_gr = text_height(draw, w_gr, f_gr, 15)
 
                     total_h = h_in + h_hd + h_gr
-                    if h_in and (h_hd or h_gr):
-                        total_h += gap_intro_hadith
-                    if h_hd and h_gr:
-                        total_h += gap_hadith_grade
+                    if h_in and (h_hd or h_gr): total_h += gap_intro_hadith
+                    if h_hd and h_gr: total_h += gap_hadith_grade
 
                     if total_h <= max_height:
                         best_x = x
@@ -273,30 +306,19 @@ if st.button("✨ توليد الصورة", type="primary"):
             h_gr = text_height(draw, wrapped_grade, font_grade, 15)
 
             total_final_h = h_in + h_hd + h_gr
-            if h_in and (h_hd or h_gr):
-                total_final_h += gap_intro_hadith
-            if h_hd and h_gr:
-                total_final_h += gap_hadith_grade
+            if h_in and (h_hd or h_gr): total_final_h += gap_intro_hadith
+            if h_hd and h_gr: total_final_h += gap_hadith_grade
 
             start_y = max(padding, (image_height - total_final_h) / 2)
 
             def draw_highlighted_text(x, y, text, font, text_color, bg_color_hex, anchor, align, spacing):
-                if not text:
-                    return 0
-                bbox = draw.multiline_textbbox(
-                    (x, y), text, font=font, anchor=anchor, align=align,
-                    spacing=spacing, direction="rtl", language="ar"
-                )
-
+                if not text: return 0
+                bbox = draw.multiline_textbbox((x, y), text, font=font, anchor=anchor, align=align, spacing=spacing, direction="rtl", language="ar")
                 if show_text_bg:
                     rgb = hex_to_rgb(bg_color_hex)
                     rect_coords = [(bbox[0] - 15, bbox[1] - 10), (bbox[2] + 15, bbox[3] + 10)]
                     draw.rectangle(rect_coords, fill=rgb)
-
-                draw.multiline_text(
-                    (x, y), text, font=font, fill=text_color, anchor=anchor,
-                    align=align, spacing=spacing, direction="rtl", language="ar"
-                )
+                draw.multiline_text((x, y), text, font=font, fill=text_color, anchor=anchor, align=align, spacing=spacing, direction="rtl", language="ar")
                 return bbox[3] - bbox[1]
 
             if wrapped_intro:
@@ -309,6 +331,29 @@ if st.button("✨ توليد الصورة", type="primary"):
 
             if wrapped_grade:
                 draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, grade_text_color, grade_bg_color, anchor_grade, align_gr, 15)
+
+            # --- رسم اللوغو فوق كل شيء ---
+            if logo_file:
+                logo_img = Image.open(logo_file).convert("RGBA")
+                
+                # تغيير الحجم
+                resample_method = getattr(Image, 'Resampling', Image).LANCZOS
+                logo_aspect = logo_img.height / logo_img.width
+                target_w = max(10, int(image_width * (logo_size_pct / 100.0)))
+                target_h = int(target_w * logo_aspect)
+                logo_img = logo_img.resize((target_w, target_h), resample_method)
+                
+                # تطبيق الشفافية
+                if logo_opacity < 100:
+                    r, g, b, a = logo_img.split()
+                    a = a.point(lambda p: int(p * (logo_opacity / 100.0)))
+                    logo_img = Image.merge("RGBA", (r, g, b, a))
+                
+                # تطبيق الإحداثيات
+                paste_x = int((image_width - target_w) * (logo_x_pct / 100.0))
+                paste_y = int((image_height - target_h) * (logo_y_pct / 100.0))
+                
+                img.paste(logo_img, (paste_x, paste_y), logo_img)
 
             st.session_state['final_image'] = img
 
