@@ -8,7 +8,7 @@ import re
 st.set_page_config(page_title="صانع صور الأحاديث", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية 📜")
-st.write("أدخل النص واضغط توليد. يمكنك بعد ذلك تعديل الإعدادات وستُطبق مباشرة دون التأثر بتغييرك للنص حتى تضغط توليد مجدداً.")
+st.write("أدخل النص واضغط توليد. يمكنك بعد ذلك تعديل الإعدادات وستُطبق مباشرة دون التأثر بتغييرك للنص.")
 
 # ================= تهيئة الجلسة والحالة =================
 def init_session_state():
@@ -32,7 +32,6 @@ def init_session_state():
 
 init_session_state()
 
-# دوال الأزرار
 def generate_action():
     if st.session_state.text_input.strip():
         st.session_state.confirmed_text = st.session_state.text_input
@@ -77,9 +76,41 @@ else:
 # ================= القائمة الجانبية (إعدادات التصميم) =================
 st.sidebar.header("🎨 إعدادات التصميم")
 
-st.sidebar.subheader("1. أبعاد الصورة")
-image_width = st.sidebar.slider("عرض الصورة:", 600, 2000, 1200, 100)
-image_height = st.sidebar.slider("طول الصورة:", 600, 2500, 1200, 100)
+# مقاسات وجودة الصورة
+st.sidebar.subheader("1. أبعاد وجودة الصورة")
+size_preset = st.sidebar.selectbox(
+    "📐 مقاس الصورة:",
+    [
+        "مربع - انستغرام (1:1) ⬛",
+        "ستوري / ريلز / تيك توك (9:16) 📱",
+        "طولي - انستغرام (4:5) 🖼️",
+        "عريض - يوتيوب / تويتر (16:9) 🖥️",
+        "مخصص (Custom) ⚙️"
+    ]
+)
+
+if "مربع" in size_preset:
+    base_w, base_h = 1080, 1080
+elif "ستوري" in size_preset:
+    base_w, base_h = 1080, 1920
+elif "طولي" in size_preset:
+    base_w, base_h = 1080, 1350
+elif "عريض" in size_preset:
+    base_w, base_h = 1920, 1080
+else:
+    base_w = st.sidebar.slider("عرض الصورة:", 600, 3000, 1080, 100)
+    base_h = st.sidebar.slider("طول الصورة:", 600, 3000, 1080, 100)
+
+quality_preset = st.sidebar.selectbox(
+    "💎 دقة الصورة (للتحميل):",
+    ["عالية (HD) - 1x", "فائقة جداً (4K) - 2x", "خارقة (8K) - 3x"]
+)
+if "1x" in quality_preset: sm = 1       # scale multiplier
+elif "2x" in quality_preset: sm = 2
+elif "3x" in quality_preset: sm = 3
+
+image_width = base_w * sm
+image_height = base_h * sm
 
 st.sidebar.subheader("2. صورة الخلفية (المرفوعة)")
 bg_image_file = st.sidebar.file_uploader("رفع صورة خلفية:", type=["png", "jpg", "jpeg"], key=f"bg_{st.session_state.uploader_key}")
@@ -95,10 +126,10 @@ if bg_image_file:
 st.sidebar.subheader("3. الإطار العام")
 st.sidebar.color_picker("لون خلفية الصورة العام:", key="bg_color")
 show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", value=True)
-frame_style = "بسيط"
+frame_style = "إسلامي كلاسيكي"
 frame_thickness = 5
 if show_frame:
-    frame_style = st.sidebar.selectbox("شكل الإطار:", ["بسيط", "مزدوج", "زوايا هندسية", "إسلامي كلاسيكي"])
+    frame_style = st.sidebar.selectbox("شكل الإطار:", ["بسيط", "مزدوج", "زوايا هندسية", "إسلامي كلاسيكي"], index=3)
     frame_thickness = st.sidebar.slider("سمك الإطار:", 1, 30, 5)
     st.sidebar.color_picker("لون الإطار:", key="frame_color")
 
@@ -115,7 +146,7 @@ align_hadith = col_hd1.selectbox("محاذاة الحديث:", align_opts, index
 hadith_size = col_hd2.number_input("حجم الحديث:", min_value=10, max_value=250, value=75, disabled=auto_scale)
 
 col_gr1, col_gr2 = st.sidebar.columns(2)
-align_grade = col_gr1.selectbox("محاذاة التخريج:", align_opts, index=0)
+align_grade = col_gr1.selectbox("محاذاة التخريج:", align_opts, index=2) # 2 = يسار كافتراضي
 grade_size = col_gr2.number_input("حجم التخريج:", min_value=10, max_value=150, value=40, disabled=auto_scale)
 
 st.sidebar.subheader("5. ألوان الخطوط")
@@ -148,7 +179,7 @@ if logo_file:
         preview_logo = Image.open(logo_file)
         aspect = preview_logo.height / preview_logo.width
         map_w = 200
-        map_h = int(map_w * (image_height / image_width))
+        map_h = int(map_w * (base_h / base_w))
         minimap = Image.new('RGB', (map_w, map_h), color="#ECECEC")
         draw_map = ImageDraw.Draw(minimap)
         draw_map.rectangle([(0,0), (map_w-1, map_h-1)], outline="#B0B0B0", width=2)
@@ -275,10 +306,11 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
 
         draw = ImageDraw.Draw(img)
         
+        # مضاعفة الأبعاد والإطارات بناءً على جودة الـ 4K (sm)
         if show_frame:
-            x0, y0 = 30, 30
-            x1, y1 = image_width - 30, image_height - 30
-            t = frame_thickness
+            x0, y0 = 30 * sm, 30 * sm
+            x1, y1 = image_width - x0, image_height - y0
+            t = frame_thickness * sm
             c = st.session_state.frame_color
 
             if frame_style == "بسيط":
@@ -286,12 +318,12 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
             
             elif frame_style == "مزدوج":
                 draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
-                gap = t + 10
+                gap = t + (10 * sm)
                 draw.rectangle([(x0+gap, y0+gap), (x1-gap, y1-gap)], outline=c, width=max(1, t//2))
             
             elif frame_style == "زوايا هندسية":
                 draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=max(1, t//2))
-                cs = t * 3 + 10
+                cs = t * 3 + (10 * sm)
                 draw.rectangle([(x0-t, y0-t), (x0+cs, y0+cs)], outline=c, width=t)
                 draw.rectangle([(x1-cs, y0-t), (x1+t, y0+cs)], outline=c, width=t)
                 draw.rectangle([(x0-t, y1-cs), (x0+cs, y1+t)], outline=c, width=t)
@@ -299,8 +331,8 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
             
             elif frame_style == "إسلامي كلاسيكي":
                 draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
-                i = 15 + t
-                ns = 30
+                i = (15 * sm) + t
+                ns = 30 * sm
                 inner_t = max(1, t//2)
                 draw.line([(x0+i, y0+i+ns), (x0+i+ns, y0+i+ns), (x0+i+ns, y0+i)], fill=c, width=inner_t)
                 draw.line([(x0+i+ns, y0+i), (x1-i-ns, y0+i)], fill=c, width=inner_t)
@@ -311,13 +343,14 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
                 draw.line([(x0+i+ns, y1-i), (x0+i+ns, y1-i-ns), (x0+i, y1-i-ns)], fill=c, width=inner_t)
                 draw.line([(x0+i, y1-i-ns), (x0+i, y0+i+ns)], fill=c, width=inner_t)
 
-        padding = 80 + (frame_thickness if show_frame else 0)
+        padding = (80 * sm) + (frame_thickness * sm if show_frame else 0)
         max_width = image_width - (padding * 2)
         max_height = image_height - (padding * 2)
 
         if auto_scale:
             best_x = 10
-            for x in range(60, 9, -1):
+            # تكبير حلقة البحث بناءً على المضاعف لتتناسب مع الصور الكبيرة كـ 4K
+            for x in range(80 * sm, 5 * sm, -1):
                 f_in = load_font(selected_font_file, 2 * x)
                 f_hd = load_font(selected_font_file, 3 * x)
                 f_gr = load_font(selected_font_file, x)
@@ -326,13 +359,13 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
                 w_hd = wrap_text(hadith_part, f_hd, max_width)
                 w_gr = wrap_text(grade_part, f_gr, max_width)
 
-                h_in = text_height(draw, w_in, f_in, 15)
-                h_hd = text_height(draw, w_hd, f_hd, 25)
-                h_gr = text_height(draw, w_gr, f_gr, 15)
+                h_in = text_height(draw, w_in, f_in, 15 * sm)
+                h_hd = text_height(draw, w_hd, f_hd, 25 * sm)
+                h_gr = text_height(draw, w_gr, f_gr, 15 * sm)
 
                 total_h = h_in + h_hd + h_gr
-                if h_in and (h_hd or h_gr): total_h += gap_intro_hadith
-                if h_hd and h_gr: total_h += gap_hadith_grade
+                if h_in and (h_hd or h_gr): total_h += (gap_intro_hadith * sm)
+                if h_hd and h_gr: total_h += (gap_hadith_grade * sm)
 
                 if total_h <= max_height:
                     best_x = x
@@ -341,9 +374,9 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
             font_hadith = load_font(selected_font_file, 3 * best_x)
             font_grade = load_font(selected_font_file, best_x)
         else:
-            font_intro = load_font(selected_font_file, intro_size)
-            font_hadith = load_font(selected_font_file, hadith_size)
-            font_grade = load_font(selected_font_file, grade_size)
+            font_intro = load_font(selected_font_file, intro_size * sm)
+            font_hadith = load_font(selected_font_file, hadith_size * sm)
+            font_grade = load_font(selected_font_file, grade_size * sm)
 
         wrapped_intro = wrap_text(intro_part, font_intro, max_width)
         wrapped_hadith = wrap_text(hadith_part, font_hadith, max_width)
@@ -353,13 +386,13 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
         x_hadith, anchor_hadith, align_hd = get_alignment_props(align_hadith, image_width, padding)
         x_grade, anchor_grade, align_gr = get_alignment_props(align_grade, image_width, padding)
 
-        h_in = text_height(draw, wrapped_intro, font_intro, 15)
-        h_hd = text_height(draw, wrapped_hadith, font_hadith, 25)
-        h_gr = text_height(draw, wrapped_grade, font_grade, 15)
+        h_in = text_height(draw, wrapped_intro, font_intro, 15 * sm)
+        h_hd = text_height(draw, wrapped_hadith, font_hadith, 25 * sm)
+        h_gr = text_height(draw, wrapped_grade, font_grade, 15 * sm)
 
         total_final_h = h_in + h_hd + h_gr
-        if h_in and (h_hd or h_gr): total_final_h += gap_intro_hadith
-        if h_hd and h_gr: total_final_h += gap_hadith_grade
+        if h_in and (h_hd or h_gr): total_final_h += (gap_intro_hadith * sm)
+        if h_hd and h_gr: total_final_h += (gap_hadith_grade * sm)
 
         start_y = max(padding, (image_height - total_final_h) / 2)
 
@@ -368,21 +401,21 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
             bbox = draw.multiline_textbbox((x, y), text, font=font, anchor=anchor, align=align, spacing=spacing, direction="rtl", language="ar")
             if show_text_bg:
                 rgb = hex_to_rgb(bg_color_hex)
-                rect_coords = [(bbox[0] - 15, bbox[1] - 10), (bbox[2] + 15, bbox[3] + 10)]
+                rect_coords = [(bbox[0] - 15*sm, bbox[1] - 10*sm), (bbox[2] + 15*sm, bbox[3] + 10*sm)]
                 draw.rectangle(rect_coords, fill=rgb)
             draw.multiline_text((x, y), text, font=font, fill=text_color, anchor=anchor, align=align, spacing=spacing, direction="rtl", language="ar")
             return bbox[3] - bbox[1]
 
         if wrapped_intro:
-            h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, st.session_state.intro_text_color, st.session_state.intro_bg_color, anchor_intro, align_in, 15)
-            start_y += h + gap_intro_hadith
+            h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, st.session_state.intro_text_color, st.session_state.intro_bg_color, anchor_intro, align_in, 15 * sm)
+            start_y += h + (gap_intro_hadith * sm)
 
         if wrapped_hadith:
-            h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, st.session_state.hadith_text_color, st.session_state.hadith_bg_color, anchor_hadith, align_hd, 25)
-            start_y += h + gap_hadith_grade
+            h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, st.session_state.hadith_text_color, st.session_state.hadith_bg_color, anchor_hadith, align_hd, 25 * sm)
+            start_y += h + (gap_hadith_grade * sm)
 
         if wrapped_grade:
-            draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, st.session_state.grade_text_color, st.session_state.grade_bg_color, anchor_grade, align_gr, 15)
+            draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, st.session_state.grade_text_color, st.session_state.grade_bg_color, anchor_grade, align_gr, 15 * sm)
 
         if logo_file:
             logo_img = Image.open(logo_file).convert("RGBA")
@@ -401,12 +434,16 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
             paste_y = int((image_height - target_h) * (logo_y_pct / 100.0))
             img.paste(logo_img, (paste_x, paste_y), logo_img)
 
-        st.image(img, caption="الصورة النهائية (تُحدث تلقائياً مع الشريط الجانبي)", use_column_width=True)
+        st.image(img, caption="الصورة النهائية (يتم عرضها مصغرة هنا، وتُحمّل بدقة عالية)", use_column_width=True)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         byte_im = buf.getvalue()
-        st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_pro_live.png", mime="image/png")
+        
+        # معلومات التحميل تظهر أسفل الصورة
+        col_dl1, col_dl2 = st.columns([1, 2])
+        with col_dl1:
+            st.download_button(f"📥 تحميل الصورة ({image_width}x{image_height})", data=byte_im, file_name="hadith_pro_hd.png", mime="image/png", use_container_width=True)
 
     except Exception as e:
         st.error(f"حدث خطأ أثناء المعالجة: {e}")
