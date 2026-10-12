@@ -201,7 +201,8 @@ def load_font(path, size):
         return ImageFont.truetype(path, size)
 
 def wrap_text(text, font, max_width):
-    if not text.strip(): return ""
+    if not text.strip(): 
+        return ""
     lines = []
     for paragraph in text.split('\n'):
         words = paragraph.split(' ')
@@ -210,13 +211,17 @@ def wrap_text(text, font, max_width):
             test_line = ' '.join(current_line + [word]) if current_line else word
             bbox = font.getbbox(test_line, direction="rtl", language="ar")
             test_width = bbox[2] - bbox[0] if bbox else 0
+            
             if test_width <= max_width:
                 current_line.append(word)
             else:
-                if current_line: lines.append(' '.join(current_line))
-                current_line = [word]
-                else: lines.append(word)
-        if current_line: lines.append(' '.join(current_line))
+                if current_line:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+                else:
+                    lines.append(word)
+        if current_line:
+            lines.append(' '.join(current_line))
     return '\n'.join(lines)
 
 def get_alignment_props(choice, width, pad):
@@ -243,105 +248,3 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
             bg_pil = Image.open(bg_image_file).convert("RGBA")
             if bg_scale_mode == "تمديد (Stretch)":
                 bg_pil = bg_pil.resize((image_width, image_height))
-                paste_pos = (0, 0)
-            elif bg_scale_mode == "ملء الشاشة (Cover)":
-                bg_ratio = bg_pil.width / bg_pil.height
-                img_ratio = image_width / image_height
-                if bg_ratio > img_ratio:
-                    new_w = int(image_height * bg_ratio)
-                    bg_pil = bg_pil.resize((new_w, image_height))
-                    paste_pos = (-(new_w - image_width) // 2, 0)
-                else:
-                    new_h = int(image_width / bg_ratio)
-                    bg_pil = bg_pil.resize((image_width, new_h))
-                    paste_pos = (0, -(new_h - image_height) // 2)
-            elif bg_scale_mode == "تخصيص الحجم (Custom)":
-                new_w = int(bg_pil.width * custom_scale / 100)
-                new_h = int(bg_pil.height * custom_scale / 100)
-                bg_pil = bg_pil.resize((new_w, new_h))
-                paste_pos = (((image_width - new_w) // 2), ((image_height - new_h) // 2))
-
-            if bg_opacity < 100:
-                r, g, b, a = bg_pil.split()
-                a = a.point(lambda p: int(p * (bg_opacity / 100.0)))
-                bg_pil = Image.merge("RGBA", (r, g, b, a))
-                
-            img.paste(bg_pil, paste_pos, bg_pil)
-
-        draw = ImageDraw.Draw(img)
-        
-        if show_frame:
-            x0, y0 = 30, 30
-            x1, y1 = image_width - 30, image_height - 30
-            t = frame_thickness
-            c = st.session_state.frame_color
-
-            if frame_style == "بسيط":
-                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
-            
-            elif frame_style == "مزدوج":
-                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
-                gap = t + 10
-                draw.rectangle([(x0+gap, y0+gap), (x1-gap, y1-gap)], outline=c, width=max(1, t//2))
-            
-            elif frame_style == "زوايا هندسية":
-                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=max(1, t//2))
-                cs = t * 3 + 10
-                draw.rectangle([(x0-t, y0-t), (x0+cs, y0+cs)], outline=c, width=t)
-                draw.rectangle([(x1-cs, y0-t), (x1+t, y0+cs)], outline=c, width=t)
-                draw.rectangle([(x0-t, y1-cs), (x0+cs, y1+t)], outline=c, width=t)
-                draw.rectangle([(x1-cs, y1-cs), (x1+t, y1+t)], outline=c, width=t)
-            
-            elif frame_style == "إسلامي كلاسيكي":
-                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
-                i = 15 + t
-                ns = 30
-                inner_t = max(1, t//2)
-                draw.line([(x0+i, y0+i+ns), (x0+i+ns, y0+i+ns), (x0+i+ns, y0+i)], fill=c, width=inner_t)
-                draw.line([(x0+i+ns, y0+i), (x1-i-ns, y0+i)], fill=c, width=inner_t)
-                draw.line([(x1-i-ns, y0+i), (x1-i-ns, y0+i+ns), (x1-i, y0+i+ns)], fill=c, width=inner_t)
-                draw.line([(x1-i, y0+i+ns), (x1-i, y1-i-ns)], fill=c, width=inner_t)
-                draw.line([(x1-i, y1-i-ns), (x1-i-ns, y1-i-ns), (x1-i-ns, y1-i)], fill=c, width=inner_t)
-                draw.line([(x1-i-ns, y1-i), (x0+i+ns, y1-i)], fill=c, width=inner_t)
-                draw.line([(x0+i+ns, y1-i), (x0+i+ns, y1-i-ns), (x0+i, y1-i-ns)], fill=c, width=inner_t)
-                draw.line([(x0+i, y1-i-ns), (x0+i, y0+i+ns)], fill=c, width=inner_t)
-
-        padding = 80 + (frame_thickness if show_frame else 0)
-        max_width = image_width - (padding * 2)
-        max_height = image_height - (padding * 2)
-
-        if auto_scale:
-            best_x = 10
-            for x in range(60, 9, -1):
-                f_in = load_font(selected_font_file, 2 * x)
-                f_hd = load_font(selected_font_file, 3 * x)
-                f_gr = load_font(selected_font_file, x)
-
-                w_in = wrap_text(intro_part, f_in, max_width)
-                w_hd = wrap_text(hadith_part, f_hd, max_width)
-                w_gr = wrap_text(grade_part, f_gr, max_width)
-
-                h_in = text_height(draw, w_in, f_in, 15)
-                h_hd = text_height(draw, w_hd, f_hd, 25)
-                h_gr = text_height(draw, w_gr, f_gr, 15)
-
-                total_h = h_in + h_hd + h_gr
-                if h_in and (h_hd or h_gr): total_h += gap_intro_hadith
-                if h_hd and h_gr: total_h += gap_hadith_grade
-
-                if total_h <= max_height:
-                    best_x = x
-                    break
-            font_intro = load_font(selected_font_file, 2 * best_x)
-            font_hadith = load_font(selected_font_file, 3 * best_x)
-            font_grade = load_font(selected_font_file, best_x)
-        else:
-            font_intro = load_font(selected_font_file, intro_size)
-            font_hadith = load_font(selected_font_file, hadith_size)
-            font_grade = load_font(selected_font_file, grade_size)
-
-        wrapped_intro = wrap_text(intro_part, font_intro, max_width)
-        wrapped_hadith = wrap_text(hadith_part, font_hadith, max_width)
-        wrapped_grade = wrap_text(grade_part, font_grade, max_width)
-
-        x_intro, anchor_intro, align_in = get_alignment_props(align
