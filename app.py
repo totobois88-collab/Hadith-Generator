@@ -8,9 +8,9 @@ import re
 st.set_page_config(page_title="صانع صور الأحاديث", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية 📜")
-st.write("أدخل النص أدناه، وسترى الصورة تتحدث مباشرة مع كل تغيير تقوم به في الإعدادات.")
+st.write("أدخل النص ثم اضغط على زر التوليد. بعد ذلك سيتم تطبيق أي تغيير في الإعدادات على الصورة تلقائياً.")
 
-# ================= تهيئة الجلسة (القيم الافتراضية من صورتك) =================
+# ================= تهيئة الجلسة =================
 def init_session_state():
     defaults = {
         "text_input": "",
@@ -21,7 +21,8 @@ def init_session_state():
         "grade_text_color": "#54391F",
         "intro_bg_color": "#F0E6D2",
         "hadith_bg_color": "#E8E8E8",
-        "grade_bg_color": "#F0E6D2"
+        "grade_bg_color": "#F0E6D2",
+        "image_generated": False  # للتحكم في ظهور زر التوليد
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -39,6 +40,7 @@ def reset_app():
     st.session_state.intro_bg_color = "#F0E6D2"
     st.session_state.hadith_bg_color = "#E8E8E8"
     st.session_state.grade_bg_color = "#F0E6D2"
+    st.session_state.image_generated = False # إعادة زر التوليد
 
 # ================= التحقق من دعم Raqm =================
 try:
@@ -141,16 +143,28 @@ if logo_file:
     except Exception:
         pass
 
-# ================= واجهة الإدخال والتوليد المباشر =================
+# ================= واجهة الإدخال =================
 col1, col2 = st.columns([2, 1])
 with col1:
-    st.button("🔄 إنشاء جديدة (تفريغ النص واستعادة الألوان)", on_click=reset_app, type="primary")
+    st.button("🔄 إنشاء جديدة (تفريغ النص واستعادة الإعدادات)", on_click=reset_app, type="primary")
+    
     st.text_area(
         "أدخل النص هنا:",
         key="text_input",
         height=200,
         placeholder="الصق نص الحديث هنا...\nيجب ترك سطر فارغ (اضغط Enter مرتين) للفصل بين السند، والحديث، والتخريج."
     )
+
+    # إظهار زر التوليد في المرة الأولى فقط
+    if not st.session_state.image_generated:
+        if st.button("✨ توليد الصورة", type="primary", use_container_width=True):
+            if st.session_state.text_input.strip():
+                st.session_state.image_generated = True
+                st.rerun()  # إعادة تحميل الصفحة ليختفي الزر وتظهر الصورة
+            else:
+                st.warning("⚠️ الرجاء إدخال نص الحديث أولاً!")
+    else:
+        st.success("✅ يتم الآن تطبيق تعديلاتك على الصورة تلقائياً وبشكل مباشر.")
 
 # ================= أدوات ومعالجات النص =================
 def parse_text_manual(text):
@@ -208,16 +222,14 @@ def text_height(draw, text, font, spacing):
     bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=spacing, direction="rtl", language="ar")
     return bbox[3]
 
-# ================= التوليد المباشر (التلقائي) =================
-if st.session_state.text_input.strip() and selected_font_file:
+# ================= توليد الصورة (يتم تفعيله بعد الضغط على الزر) =================
+if st.session_state.image_generated and st.session_state.text_input.strip() and selected_font_file:
     try:
         intro_part, hadith_part, grade_part = parse_text_manual(st.session_state.text_input)
         img = Image.new('RGB', (image_width, image_height), color=st.session_state.bg_color)
 
-        # دمج صورة الخلفية مع دعم الشفافية
         if bg_image_file:
             bg_pil = Image.open(bg_image_file).convert("RGBA")
-            # التحجيم
             if bg_scale_mode == "تمديد (Stretch)":
                 bg_pil = bg_pil.resize((image_width, image_height))
                 paste_pos = (0, 0)
@@ -238,7 +250,6 @@ if st.session_state.text_input.strip() and selected_font_file:
                 bg_pil = bg_pil.resize((new_w, new_h))
                 paste_pos = (((image_width - new_w) // 2), ((image_height - new_h) // 2))
 
-            # تطبيق الشفافية على الخلفية المرفوعة
             if bg_opacity < 100:
                 r, g, b, a = bg_pil.split()
                 a = a.point(lambda p: int(p * (bg_opacity / 100.0)))
@@ -342,15 +353,12 @@ if st.session_state.text_input.strip() and selected_font_file:
             paste_y = int((image_height - target_h) * (logo_y_pct / 100.0))
             img.paste(logo_img, (paste_x, paste_y), logo_img)
 
-        # عرض الصورة المتولدة تلقائياً
         st.image(img, caption="معاينة الصورة النهائية (تتحدث تلقائياً)", use_column_width=True)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         byte_im = buf.getvalue()
-        st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_pro_bg.png", mime="image/png")
+        st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_pro_live.png", mime="image/png")
 
     except Exception as e:
         st.error(f"حدث خطأ أثناء المعالجة: {e}")
-else:
-    st.info("💡 اكتب نص الحديث في المربع لتبدأ الصورة في الظهور والتحديث تلقائياً!")
