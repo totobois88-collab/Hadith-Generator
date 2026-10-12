@@ -248,3 +248,167 @@ if st.session_state.image_generated and st.session_state.confirmed_text.strip() 
             bg_pil = Image.open(bg_image_file).convert("RGBA")
             if bg_scale_mode == "تمديد (Stretch)":
                 bg_pil = bg_pil.resize((image_width, image_height))
+                paste_pos = (0, 0)
+            elif bg_scale_mode == "ملء الشاشة (Cover)":
+                bg_ratio = bg_pil.width / bg_pil.height
+                img_ratio = image_width / image_height
+                if bg_ratio > img_ratio:
+                    new_w = int(image_height * bg_ratio)
+                    bg_pil = bg_pil.resize((new_w, image_height))
+                    paste_pos = (-(new_w - image_width) // 2, 0)
+                else:
+                    new_h = int(image_width / bg_ratio)
+                    bg_pil = bg_pil.resize((image_width, new_h))
+                    paste_pos = (0, -(new_h - image_height) // 2)
+            elif bg_scale_mode == "تخصيص الحجم (Custom)":
+                new_w = int(bg_pil.width * custom_scale / 100)
+                new_h = int(bg_pil.height * custom_scale / 100)
+                bg_pil = bg_pil.resize((new_w, new_h))
+                paste_pos = (((image_width - new_w) // 2), ((image_height - new_h) // 2))
+
+            if bg_opacity < 100:
+                r, g, b, a = bg_pil.split()
+                a = a.point(lambda p: int(p * (bg_opacity / 100.0)))
+                bg_pil = Image.merge("RGBA", (r, g, b, a))
+                
+            img.paste(bg_pil, paste_pos, bg_pil)
+
+        draw = ImageDraw.Draw(img)
+        
+        if show_frame:
+            x0, y0 = 30, 30
+            x1, y1 = image_width - 30, image_height - 30
+            t = frame_thickness
+            c = st.session_state.frame_color
+
+            if frame_style == "بسيط":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
+            
+            elif frame_style == "مزدوج":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
+                gap = t + 10
+                draw.rectangle([(x0+gap, y0+gap), (x1-gap, y1-gap)], outline=c, width=max(1, t//2))
+            
+            elif frame_style == "زوايا هندسية":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=max(1, t//2))
+                cs = t * 3 + 10
+                draw.rectangle([(x0-t, y0-t), (x0+cs, y0+cs)], outline=c, width=t)
+                draw.rectangle([(x1-cs, y0-t), (x1+t, y0+cs)], outline=c, width=t)
+                draw.rectangle([(x0-t, y1-cs), (x0+cs, y1+t)], outline=c, width=t)
+                draw.rectangle([(x1-cs, y1-cs), (x1+t, y1+t)], outline=c, width=t)
+            
+            elif frame_style == "إسلامي كلاسيكي":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
+                i = 15 + t
+                ns = 30
+                inner_t = max(1, t//2)
+                draw.line([(x0+i, y0+i+ns), (x0+i+ns, y0+i+ns), (x0+i+ns, y0+i)], fill=c, width=inner_t)
+                draw.line([(x0+i+ns, y0+i), (x1-i-ns, y0+i)], fill=c, width=inner_t)
+                draw.line([(x1-i-ns, y0+i), (x1-i-ns, y0+i+ns), (x1-i, y0+i+ns)], fill=c, width=inner_t)
+                draw.line([(x1-i, y0+i+ns), (x1-i, y1-i-ns)], fill=c, width=inner_t)
+                draw.line([(x1-i, y1-i-ns), (x1-i-ns, y1-i-ns), (x1-i-ns, y1-i)], fill=c, width=inner_t)
+                draw.line([(x1-i-ns, y1-i), (x0+i+ns, y1-i)], fill=c, width=inner_t)
+                draw.line([(x0+i+ns, y1-i), (x0+i+ns, y1-i-ns), (x0+i, y1-i-ns)], fill=c, width=inner_t)
+                draw.line([(x0+i, y1-i-ns), (x0+i, y0+i+ns)], fill=c, width=inner_t)
+
+        padding = 80 + (frame_thickness if show_frame else 0)
+        max_width = image_width - (padding * 2)
+        max_height = image_height - (padding * 2)
+
+        if auto_scale:
+            best_x = 10
+            for x in range(60, 9, -1):
+                f_in = load_font(selected_font_file, 2 * x)
+                f_hd = load_font(selected_font_file, 3 * x)
+                f_gr = load_font(selected_font_file, x)
+
+                w_in = wrap_text(intro_part, f_in, max_width)
+                w_hd = wrap_text(hadith_part, f_hd, max_width)
+                w_gr = wrap_text(grade_part, f_gr, max_width)
+
+                h_in = text_height(draw, w_in, f_in, 15)
+                h_hd = text_height(draw, w_hd, f_hd, 25)
+                h_gr = text_height(draw, w_gr, f_gr, 15)
+
+                total_h = h_in + h_hd + h_gr
+                if h_in and (h_hd or h_gr): total_h += gap_intro_hadith
+                if h_hd and h_gr: total_h += gap_hadith_grade
+
+                if total_h <= max_height:
+                    best_x = x
+                    break
+            font_intro = load_font(selected_font_file, 2 * best_x)
+            font_hadith = load_font(selected_font_file, 3 * best_x)
+            font_grade = load_font(selected_font_file, best_x)
+        else:
+            font_intro = load_font(selected_font_file, intro_size)
+            font_hadith = load_font(selected_font_file, hadith_size)
+            font_grade = load_font(selected_font_file, grade_size)
+
+        wrapped_intro = wrap_text(intro_part, font_intro, max_width)
+        wrapped_hadith = wrap_text(hadith_part, font_hadith, max_width)
+        wrapped_grade = wrap_text(grade_part, font_grade, max_width)
+
+        x_intro, anchor_intro, align_in = get_alignment_props(align_intro, image_width, padding)
+        x_hadith, anchor_hadith, align_hd = get_alignment_props(align_hadith, image_width, padding)
+        x_grade, anchor_grade, align_gr = get_alignment_props(align_grade, image_width, padding)
+
+        h_in = text_height(draw, wrapped_intro, font_intro, 15)
+        h_hd = text_height(draw, wrapped_hadith, font_hadith, 25)
+        h_gr = text_height(draw, wrapped_grade, font_grade, 15)
+
+        total_final_h = h_in + h_hd + h_gr
+        if h_in and (h_hd or h_gr): total_final_h += gap_intro_hadith
+        if h_hd and h_gr: total_final_h += gap_hadith_grade
+
+        start_y = max(padding, (image_height - total_final_h) / 2)
+
+        def draw_highlighted_text(x, y, text, font, text_color, bg_color_hex, anchor, align, spacing):
+            if not text: return 0
+            bbox = draw.multiline_textbbox((x, y), text, font=font, anchor=anchor, align=align, spacing=spacing, direction="rtl", language="ar")
+            if show_text_bg:
+                rgb = hex_to_rgb(bg_color_hex)
+                rect_coords = [(bbox[0] - 15, bbox[1] - 10), (bbox[2] + 15, bbox[3] + 10)]
+                draw.rectangle(rect_coords, fill=rgb)
+            draw.multiline_text((x, y), text, font=font, fill=text_color, anchor=anchor, align=align, spacing=spacing, direction="rtl", language="ar")
+            return bbox[3] - bbox[1]
+
+        if wrapped_intro:
+            h = draw_highlighted_text(x_intro, start_y, wrapped_intro, font_intro, st.session_state.intro_text_color, st.session_state.intro_bg_color, anchor_intro, align_in, 15)
+            start_y += h + gap_intro_hadith
+
+        if wrapped_hadith:
+            h = draw_highlighted_text(x_hadith, start_y, wrapped_hadith, font_hadith, st.session_state.hadith_text_color, st.session_state.hadith_bg_color, anchor_hadith, align_hd, 25)
+            start_y += h + gap_hadith_grade
+
+        if wrapped_grade:
+            draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, st.session_state.grade_text_color, st.session_state.grade_bg_color, anchor_grade, align_gr, 15)
+
+        if logo_file:
+            logo_img = Image.open(logo_file).convert("RGBA")
+            resample_method = getattr(Image, 'Resampling', Image).LANCZOS
+            logo_aspect = logo_img.height / logo_img.width
+            target_w = max(10, int(image_width * (logo_size_pct / 100.0)))
+            target_h = int(target_w * logo_aspect)
+            logo_img = logo_img.resize((target_w, target_h), resample_method)
+            
+            if logo_opacity < 100:
+                r, g, b, a = logo_img.split()
+                a = a.point(lambda p: int(p * (logo_opacity / 100.0)))
+                logo_img = Image.merge("RGBA", (r, g, b, a))
+            
+            paste_x = int((image_width - target_w) * (logo_x_pct / 100.0))
+            paste_y = int((image_height - target_h) * (logo_y_pct / 100.0))
+            img.paste(logo_img, (paste_x, paste_y), logo_img)
+
+        st.image(img, caption="الصورة النهائية (تُحدث تلقائياً مع الشريط الجانبي)", use_column_width=True)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        byte_im = buf.getvalue()
+        st.download_button("📥 تحميل الصورة", data=byte_im, file_name="hadith_pro_live.png", mime="image/png")
+
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء المعالجة: {e}")
+
+# === نهاية الكود ===
