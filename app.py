@@ -8,12 +8,13 @@ import re
 st.set_page_config(page_title="صانع صور الأحاديث", page_icon="📜", layout="wide")
 
 st.title("صانع صور الأحاديث النبوية 📜")
-st.write("أدخل النص ثم اضغط على زر التوليد. بعد ذلك سيتم تطبيق أي تغيير في الإعدادات على الصورة تلقائياً.")
+st.write("أدخل النص واضغط توليد. يمكنك بعد ذلك تعديل الإعدادات وستُطبق مباشرة دون التأثر بتغييرك للنص حتى تضغط توليد مجدداً.")
 
-# ================= تهيئة الجلسة =================
+# ================= تهيئة الجلسة والحالة =================
 def init_session_state():
     defaults = {
         "text_input": "",
+        "confirmed_text": "",
         "bg_color": "#E4D2B1",
         "frame_color": "#54391F",
         "intro_text_color": "#821107",
@@ -22,7 +23,8 @@ def init_session_state():
         "intro_bg_color": "#F0E6D2",
         "hadith_bg_color": "#E8E8E8",
         "grade_bg_color": "#F0E6D2",
-        "image_generated": False  # للتحكم في ظهور زر التوليد
+        "image_generated": False,
+        "uploader_key": 0 # مُعرف لتفريغ الملفات المرفوعة
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -30,8 +32,18 @@ def init_session_state():
 
 init_session_state()
 
+# دوال الأزرار
+def generate_action():
+    if st.session_state.text_input.strip():
+        st.session_state.confirmed_text = st.session_state.text_input
+        st.session_state.image_generated = True
+
+def clear_text():
+    st.session_state.text_input = ""
+
 def reset_app():
     st.session_state.text_input = ""
+    st.session_state.confirmed_text = ""
     st.session_state.bg_color = "#E4D2B1"
     st.session_state.frame_color = "#54391F"
     st.session_state.intro_text_color = "#821107"
@@ -40,7 +52,8 @@ def reset_app():
     st.session_state.intro_bg_color = "#F0E6D2"
     st.session_state.hadith_bg_color = "#E8E8E8"
     st.session_state.grade_bg_color = "#F0E6D2"
-    st.session_state.image_generated = False # إعادة زر التوليد
+    st.session_state.image_generated = False
+    st.session_state.uploader_key += 1
 
 # ================= التحقق من دعم Raqm =================
 try:
@@ -69,7 +82,7 @@ image_width = st.sidebar.slider("عرض الصورة:", 600, 2000, 1200, 100)
 image_height = st.sidebar.slider("طول الصورة:", 600, 2500, 1200, 100)
 
 st.sidebar.subheader("2. صورة الخلفية (المرفوعة)")
-bg_image_file = st.sidebar.file_uploader("رفع صورة خلفية (اختياري):", type=["png", "jpg", "jpeg"])
+bg_image_file = st.sidebar.file_uploader("رفع صورة خلفية:", type=["png", "jpg", "jpeg"], key=f"bg_{st.session_state.uploader_key}")
 bg_scale_mode = "ملء الشاشة (Cover)"
 custom_scale = 100
 bg_opacity = 100
@@ -79,10 +92,20 @@ if bg_image_file:
     if bg_scale_mode == "تخصيص الحجم (Custom)":
         custom_scale = st.sidebar.slider("نسبة التكبير/التصغير:", 10, 200, 100)
 
-st.sidebar.subheader("3. محاذاة وأحجام النصوص")
-auto_scale = st.sidebar.checkbox("🤖 تفعيل التحجيم الآلي للخطوط", value=True)
+st.sidebar.subheader("3. الإطار العام (جديد)")
+st.sidebar.color_picker("لون خلفية الصورة العام:", key="bg_color")
+show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", value=True)
+frame_style = "بسيط"
+frame_thickness = 5
+if show_frame:
+    frame_style = st.sidebar.selectbox("شكل الإطار:", ["بسيط", "مزدوج", "زوايا هندسية", "إسلامي كلاسيكي"])
+    frame_thickness = st.sidebar.slider("سمك الإطار:", 1, 30, 5)
+    st.sidebar.color_picker("لون الإطار:", key="frame_color")
 
+st.sidebar.subheader("4. محاذاة وأحجام النصوص")
+auto_scale = st.sidebar.checkbox("🤖 تفعيل التحجيم الآلي للخطوط", value=True)
 align_opts = ["وسط (Center)", "يمين (Right)", "يسار (Left)"]
+
 col_in1, col_in2 = st.sidebar.columns(2)
 align_intro = col_in1.selectbox("محاذاة السند:", align_opts, index=0)
 intro_size = col_in2.number_input("حجم السند:", min_value=10, max_value=150, value=40, disabled=auto_scale)
@@ -95,36 +118,31 @@ col_gr1, col_gr2 = st.sidebar.columns(2)
 align_grade = col_gr1.selectbox("محاذاة التخريج:", align_opts, index=0)
 grade_size = col_gr2.number_input("حجم التخريج:", min_value=10, max_value=150, value=40, disabled=auto_scale)
 
-st.sidebar.subheader("4. ألوان الخطوط")
+st.sidebar.subheader("5. ألوان الخطوط")
 st.sidebar.color_picker("لون نص السند:", key="intro_text_color")
 st.sidebar.color_picker("لون نص الحديث:", key="hadith_text_color")
 st.sidebar.color_picker("لون التخريج:", key="grade_text_color")
 
-st.sidebar.subheader("5. أشرطة (تظليل) خلف النصوص")
+st.sidebar.subheader("6. أشرطة (تظليل) خلف النصوص")
 show_text_bg = st.sidebar.checkbox("تفعيل تظليل ملون خلف النصوص", value=False)
 if show_text_bg:
     st.sidebar.color_picker("لون تظليل السند:", key="intro_bg_color")
     st.sidebar.color_picker("لون تظليل الحديث:", key="hadith_bg_color")
     st.sidebar.color_picker("لون تظليل التخريج:", key="grade_bg_color")
 
-st.sidebar.subheader("6. المسافات بين الأقسام (التباعد)")
+st.sidebar.subheader("7. المسافات بين الأقسام")
 gap_intro_hadith = st.sidebar.slider("المسافة بين السند والحديث:", 0, 200, 60)
 gap_hadith_grade = st.sidebar.slider("المسافة بين الحديث والتخريج:", 0, 200, 60)
-
-st.sidebar.subheader("7. إعدادات أخرى")
-st.sidebar.color_picker("لون خلفية الصورة العام:", key="bg_color")
-show_frame = st.sidebar.checkbox("إضافة إطار عام للصورة", value=True)
-st.sidebar.color_picker("لون الإطار العام:", key="frame_color")
-selected_font_file = st.sidebar.selectbox("اختر نوع الخط:", available_fonts, index=default_font_index) if available_fonts else None
+selected_font_file = st.sidebar.selectbox("نوع الخط:", available_fonts, index=default_font_index) if available_fonts else None
 
 st.sidebar.subheader("8. الشعار (اللوغو)")
-logo_file = st.sidebar.file_uploader("رفع الشعار (PNG شفاف أو JPG):", type=["png", "jpg", "jpeg"])
+logo_file = st.sidebar.file_uploader("رفع الشعار (PNG أو JPG):", type=["png", "jpg", "jpeg"], key=f"logo_{st.session_state.uploader_key}")
 if logo_file:
     logo_size_pct = st.sidebar.slider("حجم الشعار (%)", min_value=5, max_value=100, value=20)
     logo_opacity = st.sidebar.slider("شفافية الشعار (%)", min_value=10, max_value=100, value=100)
     st.sidebar.write("**موضع الشعار:**")
-    logo_x_pct = st.sidebar.slider("المحور الأفقي (يمين - يسار)", 0, 100, 50, label_visibility="collapsed")
-    logo_y_pct = st.sidebar.slider("المحور العمودي (أعلى - أسفل)", 0, 100, 90, label_visibility="collapsed")
+    logo_x_pct = st.sidebar.slider("المحور الأفقي", 0, 100, 50, label_visibility="collapsed")
+    logo_y_pct = st.sidebar.slider("المحور العمودي", 0, 100, 90, label_visibility="collapsed")
     
     try:
         preview_logo = Image.open(logo_file)
@@ -144,27 +162,23 @@ if logo_file:
         pass
 
 # ================= واجهة الإدخال =================
-col1, col2 = st.columns([2, 1])
-with col1:
-    st.button("🔄 إنشاء جديدة (تفريغ النص واستعادة الإعدادات)", on_click=reset_app, type="primary")
-    
-    st.text_area(
-        "أدخل النص هنا:",
-        key="text_input",
-        height=200,
-        placeholder="الصق نص الحديث هنا...\nيجب ترك سطر فارغ (اضغط Enter مرتين) للفصل بين السند، والحديث، والتخريج."
-    )
+col_btn1, col_btn2, col_btn3 = st.columns(3)
+with col_btn1:
+    st.button("✨ توليد الصورة", on_click=generate_action, type="primary", use_container_width=True)
+with col_btn2:
+    st.button("🗑️ تفريغ النص", on_click=clear_text, use_container_width=True)
+with col_btn3:
+    st.button("🔄 إنشاء جديد", on_click=reset_app, use_container_width=True)
 
-    # إظهار زر التوليد في المرة الأولى فقط
-    if not st.session_state.image_generated:
-        if st.button("✨ توليد الصورة", type="primary", use_container_width=True):
-            if st.session_state.text_input.strip():
-                st.session_state.image_generated = True
-                st.rerun()  # إعادة تحميل الصفحة ليختفي الزر وتظهر الصورة
-            else:
-                st.warning("⚠️ الرجاء إدخال نص الحديث أولاً!")
-    else:
-        st.success("✅ يتم الآن تطبيق تعديلاتك على الصورة تلقائياً وبشكل مباشر.")
+st.text_area(
+    "أدخل النص هنا:",
+    key="text_input",
+    height=200,
+    placeholder="الصق نص الحديث هنا...\nيجب ترك سطر فارغ (اضغط Enter مرتين) للفصل بين السند، والحديث، والتخريج."
+)
+
+if not st.session_state.image_generated:
+    st.info("💡 اكتب النص واضغط (توليد الصورة). التعديلات الجانبية ستُطبق تلقائياً بعد التوليد الأول.")
 
 # ================= أدوات ومعالجات النص =================
 def parse_text_manual(text):
@@ -199,13 +213,10 @@ def wrap_text(text, font, max_width):
             if test_width <= max_width:
                 current_line.append(word)
             else:
-                if current_line:
-                    lines.append(' '.join(current_line))
-                    current_line = [word]
-                else:
-                    lines.append(word)
-        if current_line:
-            lines.append(' '.join(current_line))
+                if current_line: lines.append(' '.join(current_line))
+                current_line = [word]
+                else: lines.append(word)
+        if current_line: lines.append(' '.join(current_line))
     return '\n'.join(lines)
 
 def get_alignment_props(choice, width, pad):
@@ -222,12 +233,14 @@ def text_height(draw, text, font, spacing):
     bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=spacing, direction="rtl", language="ar")
     return bbox[3]
 
-# ================= توليد الصورة (يتم تفعيله بعد الضغط على الزر) =================
-if st.session_state.image_generated and st.session_state.text_input.strip() and selected_font_file:
+# ================= توليد الصورة =================
+# نعتمد هنا على "confirmed_text" لكي لا يتأثر التحديث الآلي بالتلاعب بمربع النص
+if st.session_state.image_generated and st.session_state.confirmed_text.strip() and selected_font_file:
     try:
-        intro_part, hadith_part, grade_part = parse_text_manual(st.session_state.text_input)
+        intro_part, hadith_part, grade_part = parse_text_manual(st.session_state.confirmed_text)
         img = Image.new('RGB', (image_width, image_height), color=st.session_state.bg_color)
 
+        # دمج صورة الخلفية المرفوعة بـ Opacity
         if bg_image_file:
             bg_pil = Image.open(bg_image_file).convert("RGBA")
             if bg_scale_mode == "تمديد (Stretch)":
@@ -258,12 +271,46 @@ if st.session_state.image_generated and st.session_state.text_input.strip() and 
             img.paste(bg_pil, paste_pos, bg_pil)
 
         draw = ImageDraw.Draw(img)
-        padding = 80
-
+        
+        # رسم الإطار الإسلامي والأشكال
         if show_frame:
-            draw.rectangle([(30, 30), (image_width - 30, image_height - 30)], outline=st.session_state.frame_color, width=5)
-            draw.rectangle([(40, 40), (image_width - 40, image_height - 40)], outline=st.session_state.frame_color, width=1)
+            x0, y0 = 30, 30
+            x1, y1 = image_width - 30, image_height - 30
+            t = frame_thickness
+            c = st.session_state.frame_color
 
+            if frame_style == "بسيط":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
+            
+            elif frame_style == "مزدوج":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
+                gap = t + 10
+                draw.rectangle([(x0+gap, y0+gap), (x1-gap, y1-gap)], outline=c, width=max(1, t//2))
+            
+            elif frame_style == "زوايا هندسية":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=max(1, t//2))
+                cs = t * 3 + 10
+                draw.rectangle([(x0-t, y0-t), (x0+cs, y0+cs)], outline=c, width=t)
+                draw.rectangle([(x1-cs, y0-t), (x1+t, y0+cs)], outline=c, width=t)
+                draw.rectangle([(x0-t, y1-cs), (x0+cs, y1+t)], outline=c, width=t)
+                draw.rectangle([(x1-cs, y1-cs), (x1+t, y1+t)], outline=c, width=t)
+            
+            elif frame_style == "إسلامي كلاسيكي":
+                draw.rectangle([(x0, y0), (x1, y1)], outline=c, width=t)
+                i = 15 + t
+                ns = 30
+                inner_t = max(1, t//2)
+                draw.line([(x0+i, y0+i+ns), (x0+i+ns, y0+i+ns), (x0+i+ns, y0+i)], fill=c, width=inner_t)
+                draw.line([(x0+i+ns, y0+i), (x1-i-ns, y0+i)], fill=c, width=inner_t)
+                draw.line([(x1-i-ns, y0+i), (x1-i-ns, y0+i+ns), (x1-i, y0+i+ns)], fill=c, width=inner_t)
+                draw.line([(x1-i, y0+i+ns), (x1-i, y1-i-ns)], fill=c, width=inner_t)
+                draw.line([(x1-i, y1-i-ns), (x1-i-ns, y1-i-ns), (x1-i-ns, y1-i)], fill=c, width=inner_t)
+                draw.line([(x1-i-ns, y1-i), (x0+i+ns, y1-i)], fill=c, width=inner_t)
+                draw.line([(x0+i+ns, y1-i), (x0+i+ns, y1-i-ns), (x0+i, y1-i-ns)], fill=c, width=inner_t)
+                draw.line([(x0+i, y1-i-ns), (x0+i, y0+i+ns)], fill=c, width=inner_t)
+
+        # منع النص من التداخل مع الإطارات العريضة
+        padding = 80 + (frame_thickness if show_frame else 0)
         max_width = image_width - (padding * 2)
         max_height = image_height - (padding * 2)
 
@@ -336,6 +383,7 @@ if st.session_state.image_generated and st.session_state.text_input.strip() and 
         if wrapped_grade:
             draw_highlighted_text(x_grade, start_y, wrapped_grade, font_grade, st.session_state.grade_text_color, st.session_state.grade_bg_color, anchor_grade, align_gr, 15)
 
+        # رسم اللوغو
         if logo_file:
             logo_img = Image.open(logo_file).convert("RGBA")
             resample_method = getattr(Image, 'Resampling', Image).LANCZOS
@@ -353,7 +401,8 @@ if st.session_state.image_generated and st.session_state.text_input.strip() and 
             paste_y = int((image_height - target_h) * (logo_y_pct / 100.0))
             img.paste(logo_img, (paste_x, paste_y), logo_img)
 
-        st.image(img, caption="معاينة الصورة النهائية (تتحدث تلقائياً)", use_column_width=True)
+        # العرض النهائي
+        st.image(img, caption="الصورة النهائية (تُحدث تلقائياً مع الشريط الجانبي)", use_column_width=True)
 
         buf = io.BytesIO()
         img.save(buf, format="PNG")
